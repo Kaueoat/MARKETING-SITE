@@ -25,6 +25,7 @@
     /* Discord: indicador de quem está falando */
     .dc-tile { transition: border-color .15s, box-shadow .15s; }
     .dc-tile.speaking { border-color: #22c55e !important; box-shadow: 0 0 0 3px rgba(34,197,94,.25); }
+    .speaking .live-ring { box-shadow: 0 0 0 2px #22c55e; }
     .swatch { width: 26px; height: 26px; border-radius: 8px; border: 2px solid #27272a; transition: transform .1s; }
     .swatch:hover { transform: scale(1.1); }
     .swatch.active { border-color: #fff; box-shadow: 0 0 0 2px #3b82f6; }
@@ -746,8 +747,8 @@
     // ficam só neste navegador.
     // =====================================================================
     window.NEXUS_CONFIG = {
-      SUPABASE_URL: 'https://lqbphwatjmhobtyfpxtw.supabase.co',
-      SUPABASE_ANON_KEY: 'sb_publishable_lZ89H4as2mrNiBHczB6SuA_V1bPOSjc'
+      SUPABASE_URL: '',
+      SUPABASE_ANON_KEY: ''
     };
 
     // =====================================================================
@@ -897,6 +898,23 @@
               leave() { try { ch.untrack(); } catch (e) {} sb.removeChannel(ch); }
             };
           },
+          // sala ao vivo: presença (quem está) + mensagens para todos da sala
+          room(name, key, info) {
+            const ch = sb.channel('room-' + name, { config: { presence: { key }, broadcast: { self: false, ack: false } } });
+            const hs = [], ev = {};
+            let cur = info, sub = false, queue = [];
+            const emit = () => { const st = ch.presenceState(), out = {}; for (const k in st) { const m = st[k]; if (m && m.length) out[k] = m[m.length - 1]; } hs.forEach(f => f(out)); };
+            ch.on('presence', { event: 'sync' }, emit).on('presence', { event: 'join' }, emit).on('presence', { event: 'leave' }, emit);
+            ch.on('broadcast', { event: 'm' }, ({ payload }) => { const fs = payload && ev[payload.e]; if (fs) fs.forEach(f => { try { f(payload.d); } catch (e) { console.error(e); } }); });
+            const out = (p) => ch.send({ type: 'broadcast', event: 'm', payload: p });
+            ch.subscribe(st => { if (st === 'SUBSCRIBED') { sub = true; ch.track(cur); queue.splice(0).forEach(out); } });
+            return {
+              update(i) { cur = { ...cur, ...i }; if (sub) ch.track(cur); },
+              onState(f) { hs.push(f); }, on(e, f) { (ev[e] = ev[e] || []).push(f); },
+              send(e, d) { const p = { e, d }; if (!sub) { if (queue.length < 200) queue.push(p); return; } out(p); },
+              leave() { try { ch.untrack(); } catch (e) {} sb.removeChannel(ch); }
+            };
+          },
           channel(name) {
             const ch = sb.channel('match-' + name, { config: { broadcast: { self: false, ack: false } } });
             let t, queue = [], ready = false;
@@ -984,6 +1002,26 @@
               leave() { alive = false; clearInterval(iv); bc.postMessage({ k: key, leave: 1 }); setTimeout(() => bc.close(), 50); }
             };
           },
+          room(name, key, info) {
+            const bc = new BroadcastChannel('nexus-room-' + name), peers = {}, hs = [], ev = {};
+            let cur = info, alive = true;
+            const emit = () => { const now = Date.now(), out = { [key]: cur }; for (const k in peers) if (now - peers[k].t < 3500) out[k] = peers[k].i; hs.forEach(f => f(out)); };
+            const beat = () => { if (alive) bc.postMessage({ k: key, i: cur }); };
+            bc.onmessage = e => {
+              const m = e.data; if (!m || m.k === key) return;
+              if (m.e) { (ev[m.e] || []).forEach(f => { try { f(m.d); } catch (err) { console.error(err); } }); return; }
+              if (m.leave) delete peers[m.k]; else { const isNew = !peers[m.k]; peers[m.k] = { i: m.i, t: Date.now() }; if (isNew) beat(); }
+              emit();
+            };
+            const iv = setInterval(() => { beat(); emit(); }, 1000);
+            beat(); setTimeout(emit, 0);
+            return {
+              update(i) { cur = { ...cur, ...i }; beat(); emit(); },
+              onState(f) { hs.push(f); }, on(e, f) { (ev[e] = ev[e] || []).push(f); },
+              send(e, d) { if (alive) bc.postMessage({ k: key, e, d: JSON.parse(JSON.stringify(d)) }); },
+              leave() { alive = false; clearInterval(iv); bc.postMessage({ k: key, leave: 1 }); setTimeout(() => bc.close(), 50); }
+            };
+          },
           channel(name) {
             const bc = new BroadcastChannel('nexus-match-' + name), me = rid();
             let t;
@@ -1007,7 +1045,7 @@
         return B.signUp({ name, email, password });
       };
       A.signIn = ({ email, password }) => { email = normEmail(email); if (!okEmail(email)) return Promise.resolve({ error: 'E-mail inválido.' }); return B.signIn({ email, password: String(password || '') }); };
-      ['signOut', 'listProfiles', 'updateProfile', 'requestAgain', 'listInvites', 'invite', 'removeInvite', 'watchProfiles', 'presence', 'channel'].forEach(k => A[k] = (...a) => B[k](...a));
+      ['signOut', 'listProfiles', 'updateProfile', 'requestAgain', 'listInvites', 'invite', 'removeInvite', 'watchProfiles', 'presence', 'channel', 'room'].forEach(k => A[k] = (...a) => B[k](...a));
       A.ADMIN = ADMIN;
     })();
   </script>
@@ -1730,8 +1768,9 @@
             </button>
             ${!c.fixed && isAdmin() ? `<button onclick="deleteChannel('${c.id}')" title="Excluir canal" class="opacity-0 group-hover:opacity-100 p-1 mr-1 text-zinc-500 hover:text-red-400"><i data-lucide="trash-2" class="w-3.5 h-3.5"></i></button>` : ''}
           </div>
-          ${here ? `<div class="pl-7 py-1"><div class="flex items-center gap-2 text-xs text-zinc-200">${avatarCircle(me.email, me.name, 'w-5 h-5 text-[9px]')}<span class="truncate">${esc(me.name)}</span>
+          ${here ? `<div class="pl-7 py-1"><div id="dc-self-row" class="flex items-center gap-2 text-xs text-zinc-200">${avatarCircle(me.email, me.name, 'w-5 h-5 text-[9px] live-ring')}<span class="truncate">${esc(me.name)}</span>
             ${!dcUI.mic ? '<i data-lucide="mic-off" class="w-3 h-3 text-red-400 ml-auto"></i>' : ''}${dcUI.cam ? '<i data-lucide="video" class="w-3 h-3 text-blue-400 ml-auto"></i>' : ''}${dcUI.screen ? '<i data-lucide="monitor-up" class="w-3 h-3 text-blue-400"></i>' : ''}</div></div>` : ''}
+          ${c.type === 'voice' ? `<div class="pl-7 pb-0.5">${liveVoiceRows(k)}</div>` : ''}
         </div>`;
       };
       document.getElementById('dc-channels').innerHTML = `
@@ -1792,7 +1831,8 @@
       } else {
         const here = dcUI.voice && dcUI.voice.server === dcUI.server && dcUI.voice.channel === c.id;
         const stage = here ? `
-          <div class="grid ${dcUI.screen ? 'grid-cols-1 lg:grid-cols-[2fr_1fr]' : 'grid-cols-1'} gap-3 flex-1 min-h-0">
+          <div class="grid ${dcUI.screen || liveRemoteScreen() ? 'grid-cols-1 lg:grid-cols-[2fr_1fr]' : (liveInVoice(myVoiceKey()).length ? 'grid-cols-1 md:grid-cols-2' : 'grid-cols-1')} gap-3 flex-1 min-h-0 auto-rows-fr">
+            ${liveScreenTileHtml()}
             ${dcUI.screen ? `
               <div class="relative bg-black border-2 border-blue-500/60 rounded-xl overflow-hidden flex items-center justify-center min-h-[200px]">
                 <video id="dc-screen-video" autoplay playsinline muted class="absolute inset-0 w-full h-full object-contain bg-black"></video>
@@ -1804,6 +1844,7 @@
                 ${!dcUI.mic ? '<i data-lucide="mic-off" class="w-3 h-3 text-red-400"></i>' : ''}<span>${esc(me.name)} (você)</span>
               </div>
             </div>
+            ${liveTilesHtml()}
           </div>` : `
           <div class="flex-1 flex flex-col items-center justify-center text-center gap-4">
             <div class="w-16 h-16 rounded-full bg-zinc-900 border border-zinc-800 flex items-center justify-center"><i data-lucide="volume-2" class="w-7 h-7 text-zinc-500"></i></div>
@@ -1839,6 +1880,7 @@
     function attachStreams() {
       const v = document.getElementById('dc-self-video'); if (v && dcUI.camStream) v.srcObject = dcUI.camStream;
       const s = document.getElementById('dc-screen-video'); if (s && dcUI.screenStream) s.srcObject = dcUI.screenStream;
+      const rs = document.getElementById('dc-remote-screen'), sh = liveRemoteScreen(); if (rs && sh) rs.srcObject = sh.videoStream;
     }
     function renderAta() {
       const el = document.getElementById('ata-container'); if (!el) return;
@@ -1856,8 +1898,9 @@
       const k = dcKey(dcUI.server, dcCurrent().id);
       (db.discord.ata[k] = db.discord.ata[k] || []).push({ id: uid(), email: me.email, user: me.name, text, time: new Date().toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }) });
       i.value = ''; save(); renderAta();
+      sharedInsert(k, 'ata', db.discord.ata[k][db.discord.ata[k].length - 1]);
     }
-    function deleteAta(id) { const k = dcKey(dcUI.server, dcCurrent().id); db.discord.ata[k] = (db.discord.ata[k] || []).filter(a => a.id !== id); save(); renderAta(); }
+    function deleteAta(id) { const k = dcKey(dcUI.server, dcCurrent().id); db.discord.ata[k] = (db.discord.ata[k] || []).filter(a => a.id !== id); save(); renderAta(); sharedDelete(id); }
     function msgTime(ts) {
       const d = new Date(ts), t = d.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
       return todayStr(d) === todayStr() ? 'Hoje às ' + t : d.toLocaleDateString('pt-BR') + ' ' + t;
@@ -1899,10 +1942,11 @@
           ${avatarCircle(u.email, u.name, 'w-8 h-8 text-[10px]', online ? 'online' : 'offline')}
           <div class="min-w-0"><p class="text-sm text-zinc-200 truncate">${esc(u.name)}</p><p class="text-[10px] text-zinc-500 truncate">${esc(u.role)}</p></div>
         </div>`;
-      const others = users.filter(u => u.email !== me.email);
+      const onl = liveOnlineUids();
+      const on = users.filter(u => onl.has(u.id) || u.id === me.id), off = users.filter(u => !onl.has(u.id) && u.id !== me.id);
       document.getElementById('dc-members').innerHTML = `
-        <p class="px-2 mb-1 text-[11px] font-bold uppercase tracking-wider text-zinc-500">Neste dispositivo — 1</p>${row(me, true)}
-        <p class="px-2 mt-4 mb-1 text-[11px] font-bold uppercase tracking-wider text-zinc-500">Equipe — ${others.length}</p>${others.map(u => row(u, false)).join('') || '<p class="px-2 text-xs text-zinc-600">Autorize e-mails em Equipe & Acessos.</p>'}`;
+        <p class="px-2 mb-1 text-[11px] font-bold uppercase tracking-wider text-zinc-500">Online — ${on.length}</p>${on.map(u => row(u, true)).join('')}
+        <p class="px-2 mt-4 mb-1 text-[11px] font-bold uppercase tracking-wider text-zinc-500">Offline — ${off.length}</p>${off.map(u => row(u, false)).join('') || '<p class="px-2 text-xs text-zinc-600">Todo mundo está online.</p>'}`;
     }
     function dcSwitchServer(id) { dcUI.server = id; renderDiscord(); }
     function dcOpenChannel(id) {
@@ -2018,6 +2062,7 @@
       (db.discord.messages[k] = db.discord.messages[k] || []).push({ id: uid(), email: me.email, user: me.name, text, ts: Date.now() });
       if (db.discord.messages[k].length > 500) db.discord.messages[k].splice(0, db.discord.messages[k].length - 500);
       save();
+      sharedInsert(k, 'msg', db.discord.messages[k][db.discord.messages[k].length - 1]);
       if (dcUI.server === server && dcCurrent().id === channel) renderDcMessages();
       if (window.office3D && office3D.say) office3D.say(me.name, text);
     }
@@ -2031,7 +2076,7 @@
     function deleteMessage(id) {
       const k = dcKey(dcUI.server, dcCurrent().id);
       db.discord.messages[k] = (db.discord.messages[k] || []).filter(m => m.id !== id);
-      save(); renderDcMessages();
+      save(); renderDcMessages(); sharedDelete(id);
     }
     function openChannelModal() { document.getElementById('ch-name').value = ''; openModal('channel-modal'); setTimeout(() => document.getElementById('ch-name').focus(), 30); }
     function saveChannel(e) {
@@ -2041,7 +2086,7 @@
       if (type === 'text') name = name.toLowerCase().replace(/\s+/g, '-');
       const id = 'c' + uid();
       dcServer().channels.push({ id, type, name, topic: '', emoji: type === 'voice' ? '🔊' : '' });
-      save(); closeModal('channel-modal');
+      save(); closeModal('channel-modal'); sharedPushServers();
       if (type === 'text') dcOpenChannel(id); else { dcUI.current[dcUI.server] = id; renderDiscord(); }
       showToast(`Canal ${type === 'text' ? '#' + name : name} criado.`, 'success');
     }
@@ -2051,7 +2096,8 @@
       if (dcUI.voice && dcUI.voice.server === sv.id && dcUI.voice.channel === id) dcLeaveVoice();
       sv.channels = sv.channels.filter(x => x.id !== id);
       delete db.discord.messages[dcKey(sv.id, id)]; delete db.discord.ata[dcKey(sv.id, id)];
-      save(); renderDiscord();
+      save(); renderDiscord(); sharedPushServers();
+      if (SHARED.on) AUTH.client.from('messages').delete().eq('room', dcKey(sv.id, id));
     }
     function openServerModal() { document.getElementById('server-name').value = ''; openModal('server-modal'); setTimeout(() => document.getElementById('server-name').focus(), 30); }
     function saveServer(e) {
@@ -2061,7 +2107,7 @@
       db.discord.servers.push({ id, name, short: initialsOf(name), channels: [
         { id: 'geral', type: 'text', name: 'geral', topic: 'Conversa geral', fixed: true },
         { id: 'voz', type: 'voice', name: 'Sala de Voz', emoji: '🔊' }] });
-      save(); closeModal('server-modal'); dcUI.server = id; renderDiscord();
+      save(); closeModal('server-modal'); dcUI.server = id; renderDiscord(); sharedPushServers();
       showToast('Servidor criado.', 'success');
     }
     function deleteServer(id) {
@@ -2070,14 +2116,353 @@
       if (dcUI.voice && dcUI.voice.server === id) dcLeaveVoice();
       db.discord.servers = db.discord.servers.filter(s => s.id !== id);
       Object.keys(db.discord.messages).forEach(k => { if (k.startsWith(id + '/')) delete db.discord.messages[k]; });
-      dcUI.server = 'nexus'; save(); renderDiscord();
+      dcUI.server = 'nexus'; save(); renderDiscord(); sharedPushServers();
+      if (SHARED.on) AUTH.client.from('messages').delete().like('room', id + '/%');
     }
     // indicador de fala (nível real do microfone)
     setInterval(() => {
       const t = document.getElementById('dc-self-tile');
       dcUI.level = dcUI.analyser && dcUI.mic && !dcUI.deaf ? dcUI.analyser() : 0;
       if (t) t.classList.toggle('speaking', dcUI.level > 0.035);
+      const sr = document.getElementById('dc-self-row'); if (sr) sr.classList.toggle('speaking', dcUI.level > 0.035);
     }, 120);
+
+    // =====================================================================
+    // AO VIVO: quem está online, bonecos no 3D, voz e tela entre as pessoas
+    // Conexão direta entre os navegadores (WebRTC). O servidor só apresenta um ao outro.
+    // =====================================================================
+    const dcVisible = () => activeTab === 'workspace' || activeTab === 'office3d';
+    const LIVE = { room: null, key: null, peers: new Map(), started: false, levels: {}, shownScreen: null, actx: null };
+    const LIVE_ICE = [{ urls: ['stun:stun.l.google.com:19302', 'stun:stun1.l.google.com:19302'] }, { urls: 'stun:global.stun.twilio.com:3478' }]
+      .concat((window.NEXUS_CONFIG && window.NEXUS_CONFIG.TURN) || []);
+    const myVoiceKey = () => dcUI.voice ? dcKey(dcUI.voice.server, dcUI.voice.channel) : null;
+    function liveMyState() {
+      return {
+        uid: me.id, name: me.name, email: me.email, avatar: db.avatars[me.email] || null,
+        voice: myVoiceKey(), mic: !!dcUI.mic, deaf: !!dcUI.deaf, screen: !!dcUI.screen,
+        place: activeTab === 'office3d' ? '3d' : '2d'
+      };
+    }
+    function liveStart() {
+      if (LIVE.started || !me || !AUTH.room) return;
+      LIVE.started = true;
+      LIVE.key = me.id + ':' + Math.random().toString(36).slice(2, 8);
+      LIVE.room = AUTH.room('office', LIVE.key, liveMyState());
+      LIVE.room.onState(liveOnState);
+      LIVE.room.on('sig', m => liveOnSignal(m));
+      LIVE.room.on('pos', d => { const p = d && LIVE.peers.get(d.k); if (p && !(p.dc && p.dc.readyState === 'open')) liveOnPos(p, d); });
+      setInterval(liveLevels, 150);
+      window.addEventListener('beforeunload', () => { try { LIVE.room.leave(); } catch (e) {} });
+      document.addEventListener('click', () => { for (const p of LIVE.peers.values()) if (p.audioEl && p.audioEl.paused && p.audioEl.srcObject) p.audioEl.play().catch(() => {}); if (LIVE.actx && LIVE.actx.state === 'suspended') LIVE.actx.resume(); });
+    }
+    let liveSyncT;
+    function liveSync() {
+      if (!LIVE.room || !me) return;
+      clearTimeout(liveSyncT);
+      liveSyncT = setTimeout(() => { LIVE.room.update(liveMyState()); liveRoute(); liveRender(); }, 40);
+    }
+    const livePeerList = () => [...LIVE.peers.values()].filter(p => p.state && p.state.uid);
+    // pessoas únicas (a mesma pessoa pode estar com 2 abas abertas)
+    function liveOnlineUids() { const s = new Set(me ? [me.id] : []); livePeerList().forEach(p => s.add(p.state.uid)); return s; }
+    function liveInVoice(key) {
+      const seen = new Set(), out = [];
+      livePeerList().forEach(p => { if (p.state.voice === key && !seen.has(p.state.uid)) { seen.add(p.state.uid); out.push(p); } });
+      return out;
+    }
+    function liveOnState(st) {
+      const seen = new Set();
+      for (const k in st) {
+        if (k === LIVE.key) continue;
+        const s = st[k]; if (!s || !s.uid) continue;
+        if (s.uid === me.id && !window.__liveAllowSelf) continue;
+        seen.add(k);
+        let p = LIVE.peers.get(k);
+        if (!p) { p = { key: k, state: {}, gen: 0 }; LIVE.peers.set(k, p); }
+        const look = JSON.stringify([s.name, s.avatar]) !== JSON.stringify([p.state.name, p.state.avatar]);
+        p.state = s;
+        if (!p.pc && LIVE.key < k && Date.now() >= (p.retryAt || 0)) liveConnect(p);
+        if (window.office3D && office3D.liveUpsert) office3D.liveUpsert(k, s, look);
+      }
+      for (const [k, p] of LIVE.peers) if (!seen.has(k) && p.state && p.state.uid) liveDrop(p);
+      liveRoute();
+      const sig = JSON.stringify(livePeerList().map(p => [p.key, p.state.voice, p.state.mic, p.state.deaf, p.state.screen, p.state.name, p.state.place, !!p.direct]));
+      if (sig !== LIVE.sig) { LIVE.sig = sig; liveRender(); }
+    }
+    function liveDrop(p) {
+      LIVE.peers.delete(p.key);
+      clearTimeout(p.failT);
+      try { p.pc && p.pc.close(); } catch (e) {}
+      if (p.audioEl) { p.audioEl.srcObject = null; p.audioEl.remove(); }
+      delete LIVE.levels[p.key];
+      if (window.office3D && office3D.liveRemove) office3D.liveRemove(p.key);
+    }
+    // ---------- conexão ----------
+    function livePc(p) {
+      const pc = new RTCPeerConnection({ iceServers: LIVE_ICE });
+      const gen = p.gen;
+      pc.onicecandidate = e => { if (e.candidate && p.pc === pc) liveSig(p.key, { type: 'ice', gen, cand: e.candidate.toJSON() }); };
+      pc.ontrack = e => { if (p.pc === pc) liveOnTrack(p, e); };
+      pc.ondatachannel = e => { if (p.pc === pc) liveDc(p, e.channel); };
+      pc.onconnectionstatechange = () => {
+        if (p.pc !== pc) return;
+        if (pc.connectionState === 'connected') { p.direct = true; clearTimeout(p.failT); liveRender(); liveRoute(p); }
+        else if (pc.connectionState === 'failed') liveFail(p);
+      };
+      p.pc = pc; p.pendingIce = []; p.direct = false; p.dc = null;
+      clearTimeout(p.failT);
+      p.failT = setTimeout(() => { if (p.pc === pc && pc.connectionState !== 'connected') liveFail(p); }, 20000);
+      return pc;
+    }
+    async function liveConnect(p) {
+      p.gen = (p.gen || 0) + 1;
+      const pc = livePc(p);
+      liveDc(p, pc.createDataChannel('live', { ordered: false, maxRetransmits: 0 }));
+      p.audioTx = pc.addTransceiver('audio', { direction: 'sendrecv' });
+      p.videoTx = pc.addTransceiver('video', { direction: 'sendrecv' });
+      liveRoute(p);
+      try {
+        await pc.setLocalDescription(await pc.createOffer());
+        liveSig(p.key, { type: 'offer', gen: p.gen, sdp: { type: pc.localDescription.type, sdp: pc.localDescription.sdp } });
+      } catch (e) { console.warn('[ao vivo] oferta', e); liveFail(p); }
+    }
+    function liveFail(p) {
+      p.direct = false;
+      try { p.pc && p.pc.close(); } catch (e) {}
+      p.pc = null; p.dc = null; p.audioTx = p.videoTx = null;
+      p.retryAt = Date.now() + 15000;
+      liveRender();
+      if (LIVE.key < p.key) setTimeout(() => { if (LIVE.peers.get(p.key) === p && !p.pc) liveConnect(p); }, 15500);
+    }
+    function liveSig(to, msg) { if (LIVE.room) LIVE.room.send('sig', { to, from: LIVE.key, ...msg }); }
+    async function liveOnSignal(m) {
+      if (!m || m.to !== LIVE.key || !me) return;
+      let p = LIVE.peers.get(m.from);
+      if (!p) {
+        if (!window.__liveAllowSelf && String(m.from).startsWith(me.id + ':')) return;
+        p = { key: m.from, state: {}, gen: 0 }; LIVE.peers.set(m.from, p);
+      }
+      try {
+        if (m.type === 'offer') {
+          if (p.pc) { try { p.pc.close(); } catch (e) {} }
+          p.gen = m.gen;
+          const pc = livePc(p);
+          await pc.setRemoteDescription(m.sdp);
+          const tx = pc.getTransceivers();
+          tx.forEach(t => { t.direction = 'sendrecv'; });
+          p.audioTx = tx.find(t => t.receiver.track && t.receiver.track.kind === 'audio');
+          p.videoTx = tx.find(t => t.receiver.track && t.receiver.track.kind === 'video');
+          liveRoute(p);
+          await pc.setLocalDescription(await pc.createAnswer());
+          liveSig(p.key, { type: 'answer', gen: m.gen, sdp: { type: pc.localDescription.type, sdp: pc.localDescription.sdp } });
+          p.pendingIce.splice(0).forEach(c => pc.addIceCandidate(c).catch(() => {}));
+        } else if (m.type === 'answer') {
+          if (!p.pc || m.gen !== p.gen || p.pc.signalingState !== 'have-local-offer') return;
+          await p.pc.setRemoteDescription(m.sdp);
+          p.pendingIce.splice(0).forEach(c => p.pc.addIceCandidate(c).catch(() => {}));
+        } else if (m.type === 'ice') {
+          if (!p.pc || m.gen !== p.gen) return;
+          if (!p.pc.remoteDescription) p.pendingIce.push(m.cand);
+          else p.pc.addIceCandidate(m.cand).catch(() => {});
+        }
+      } catch (e) { console.warn('[ao vivo] sinal', e); }
+    }
+    function liveDc(p, dc) {
+      p.dc = dc;
+      dc.onopen = () => { liveRender(); if (LIVE.lastPos) liveSendPos(LIVE.lastPos, true); };
+      dc.onmessage = e => { try { const d = JSON.parse(e.data); if (d.t === 'p') liveOnPos(p, d); } catch (err) {} };
+    }
+    // ---------- posição no escritório 3D ----------
+    function liveOnPos(p, d) { p.pos = d; if (window.office3D && office3D.livePos) office3D.livePos(p.key, d); }
+    let livePosT = 0, liveRelayT = 0;
+    function liveSendPos(pos, force) {
+      if (!LIVE.room) return;
+      const now = performance.now(), last = LIVE.lastPos;
+      const changed = !last || Math.abs(pos.x - last.x) > 0.02 || Math.abs(pos.z - last.z) > 0.02 || Math.abs(pos.y - last.y) > 0.02 || Math.abs(pos.ry - last.ry) > 0.03 || pos.mv !== last.mv || !!pos.seat !== !!last.seat;
+      if (!force && now - livePosT < (changed ? 90 : 2000)) return;
+      livePosT = now; LIVE.lastPos = pos;
+      const msg = JSON.stringify({ t: 'p', ...pos });
+      let relay = false;
+      for (const p of LIVE.peers.values()) {
+        if (p.dc && p.dc.readyState === 'open') { try { p.dc.send(msg); } catch (e) {} }
+        else if (p.state && p.state.uid) relay = true;
+      }
+      if (relay && (force || now - liveRelayT > (changed ? 300 : 2500))) { liveRelayT = now; LIVE.room.send('pos', { k: LIVE.key, ...pos }); }
+    }
+    window.liveSendPos = liveSendPos;
+    window.livePeerStates = () => livePeerList().map(p => ({ key: p.key, state: p.state, pos: p.pos }));
+    // ---------- áudio / tela ----------
+    const liveSame = p => { const mine = myVoiceKey(); return !!mine && !!p.state && p.state.voice === mine; };
+    function liveRoute(only) {
+      const micT = dcUI.micStream && dcUI.micStream.getAudioTracks()[0];
+      const scrT = dcUI.screenStream && dcUI.screenStream.getVideoTracks()[0];
+      for (const p of (only ? [only] : LIVE.peers.values())) {
+        const same = liveSame(p);
+        if (p.audioTx && p.audioTx.sender) { const want = same && micT ? micT : null; if (p.audioTx.sender.track !== want) p.audioTx.sender.replaceTrack(want).catch(() => {}); }
+        if (p.videoTx && p.videoTx.sender) { const want = same && scrT ? scrT : null; if (p.videoTx.sender.track !== want) p.videoTx.sender.replaceTrack(want).catch(() => {}); }
+        if (p.audioEl) { p.audioEl.muted = !(same && !dcUI.deaf); if (!p.audioEl.muted && p.audioEl.paused) p.audioEl.play().catch(() => {}); }
+      }
+      liveScreens();
+    }
+    function liveOnTrack(p, e) {
+      if (e.track.kind === 'audio') {
+        p.audioStream = new MediaStream([e.track]);
+        if (!p.audioEl) { p.audioEl = document.createElement('audio'); p.audioEl.autoplay = true; p.audioEl.setAttribute('playsinline', ''); p.audioEl.style.display = 'none'; document.body.appendChild(p.audioEl); }
+        p.audioEl.srcObject = p.audioStream;
+        p.audioEl.play().catch(() => {});
+        try {
+          const Ctx = window.AudioContext || window.webkitAudioContext;
+          if (Ctx) {
+            LIVE.actx = LIVE.actx || new Ctx();
+            const an = LIVE.actx.createAnalyser(); an.fftSize = 512;
+            LIVE.actx.createMediaStreamSource(p.audioStream).connect(an);
+            const buf = new Uint8Array(an.fftSize);
+            p.level = () => { an.getByteTimeDomainData(buf); let s = 0; for (const v of buf) { const x = (v - 128) / 128; s += x * x; } return Math.sqrt(s / buf.length); };
+          }
+        } catch (err) {}
+      } else {
+        p.videoStream = new MediaStream([e.track]);
+      }
+      liveRoute(p);
+    }
+    function liveRemoteScreen() {
+      if (dcUI.screen) return null;
+      return livePeerList().find(p => p.state.screen && liveSame(p) && p.videoStream) || null;
+    }
+    function liveScreens() {
+      const sh = liveRemoteScreen(), s = sh ? sh.videoStream : null;
+      if (dcUI.screen) { LIVE.shownScreen = null; return; }
+      if (LIVE.shownScreen !== s) {
+        LIVE.shownScreen = s;
+        if (window.office3D && office3D.setScreenStream) office3D.setScreenStream(s, s && dcUI.voice ? dcUI.voice.channel : undefined);
+        if (dcVisible() && dcCurrent() && dcCurrent().type === 'voice') renderDcMain();
+      }
+    }
+    function liveLevels() {
+      for (const p of LIVE.peers.values()) {
+        const lv = p.level && liveSame(p) && p.state.mic ? p.level() : 0;
+        const on = lv > 0.03;
+        if (!!LIVE.levels[p.key] !== on) {
+          LIVE.levels[p.key] = on;
+          document.querySelectorAll(`[data-live="${p.state.uid}"]`).forEach(el => el.classList.toggle('speaking', on));
+        }
+      }
+    }
+    // ---------- telas ----------
+    let liveRenderT;
+    function liveRender() {
+      clearTimeout(liveRenderT);
+      liveRenderT = setTimeout(() => {
+        if (!me) return;
+        if (dcVisible()) {
+          renderDcChannels(); renderDcMembers();
+          const c = dcCurrent();
+          if (c && c.type === 'voice' && !document.activeElement.closest('#dc-main form')) renderDcMain();
+          refreshIcons();
+        }
+        if (window.office3D && office3D.refreshVoice) office3D.refreshVoice();
+      }, 150);
+    }
+    function liveVoiceRows(key) {
+      return liveInVoice(key).map(p => `<div class="flex items-center gap-2 text-xs text-zinc-300 mt-1" data-live="${p.state.uid}">${avatarCircle(p.state.email, p.state.name, 'w-5 h-5 text-[9px] live-ring')}<span class="truncate">${esc(p.state.name)}</span>
+        ${!p.state.mic || p.state.deaf ? '<i data-lucide="mic-off" class="w-3 h-3 text-red-400 ml-auto"></i>' : ''}${p.state.screen ? '<i data-lucide="monitor-up" class="w-3 h-3 text-blue-400 ml-auto"></i>' : ''}</div>`).join('');
+    }
+    function liveTilesHtml() {
+      const key = myVoiceKey(); if (!key) return '';
+      return liveInVoice(key).map(p => {
+        const conn = p.direct ? '' : '<span class="absolute top-2 right-2 text-[10px] px-2 py-0.5 rounded-full bg-amber-500/15 text-amber-300 border border-amber-500/30">conectando...</span>';
+        return `<div class="dc-tile relative bg-black border-2 border-zinc-800 rounded-xl overflow-hidden flex items-center justify-center min-h-[200px]" data-live="${p.state.uid}">
+          ${avatarCircle(p.state.email, p.state.name, 'w-20 h-20 text-2xl')}${conn}
+          <div class="absolute bottom-2 left-2 bg-black/80 backdrop-blur px-2 py-1 rounded-md border border-zinc-800 flex items-center gap-1.5 text-[11px] text-zinc-200">
+            ${!p.state.mic || p.state.deaf ? '<i data-lucide="mic-off" class="w-3 h-3 text-red-400"></i>' : ''}<span>${esc(p.state.name)}</span></div></div>`;
+      }).join('');
+    }
+    function liveScreenTileHtml() {
+      const sh = liveRemoteScreen(); if (!sh) return '';
+      return `<div class="relative bg-black border-2 border-blue-500/60 rounded-xl overflow-hidden flex items-center justify-center min-h-[200px]">
+        <video id="dc-remote-screen" autoplay playsinline muted class="absolute inset-0 w-full h-full object-contain bg-black"></video>
+        <div class="absolute bottom-2 left-2 bg-black/80 px-2 py-1 rounded-md border border-zinc-800 text-[11px] text-zinc-200 flex items-center gap-1"><i data-lucide="monitor-up" class="w-3 h-3 text-blue-400"></i> Tela de ${esc(sh.state.name)}</div></div>`;
+    }
+
+    // =====================================================================
+    // DISCORD COMPARTILHADO: mensagens, atas e canais no servidor
+    // =====================================================================
+    const SHARED = { on: false };
+
+    const rowToMsg = r => ({ id: r.id, email: r.email, user: r.author, text: r.text, ts: Date.parse(r.created_at) || Date.now() });
+    const rowToAta = r => ({ id: r.id, email: r.email, user: r.author, text: r.text, time: new Date(Date.parse(r.created_at) || Date.now()).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }) });
+    function sharedAdd(r) {
+      const bag = r.kind === 'ata' ? db.discord.ata : db.discord.messages;
+      const list = bag[r.room] = bag[r.room] || [];
+      if (list.some(m => m.id === r.id)) return false;
+      list.push(r.kind === 'ata' ? rowToAta(r) : rowToMsg(r));
+      if (list.length > 500) list.splice(0, list.length - 500);
+      return true;
+    }
+    function sharedRemove(id) {
+      let hit = false;
+      [db.discord.messages, db.discord.ata].forEach(bag => Object.keys(bag).forEach(k => { const n = bag[k].length; bag[k] = bag[k].filter(m => m.id !== id); if (bag[k].length !== n) hit = true; }));
+      return hit;
+    }
+    function sharedRerender() {
+      try { localStorage.setItem(DB_KEY, JSON.stringify(db)); } catch (e) {}
+      if (dcVisible()) { renderDcMessages(); renderAta(); }
+      if (activeTab === 'overview' && typeof renderOverview === 'function') renderOverview();
+    }
+    function applyServers(list) {
+      if (!Array.isArray(list) || !list.length) return;
+      db.discord.servers = JSON.parse(JSON.stringify(list));
+      normalizeDB();
+      if (!db.discord.servers.some(s => s.id === dcUI.server)) dcUI.server = 'nexus';
+      try { localStorage.setItem(DB_KEY, JSON.stringify(db)); } catch (e) {}
+      if (dcVisible()) renderDiscord();
+    }
+    async function sharedPushServers() {
+      if (!SHARED.on) return;
+      const { error } = await AUTH.client.from('shared_state').upsert({ key: 'discord_servers', data: db.discord.servers });
+      if (error) console.warn('[discord] canais', error.message);
+    }
+    async function sharedInsert(room, kind, item) {
+      if (!SHARED.on) return;
+      const { error } = await AUTH.client.from('messages').insert({ id: item.id, room, kind, text: item.text });
+      if (error) { showToast('A mensagem não foi enviada: ' + error.message, 'error'); sharedRemove(item.id); sharedRerender(); }
+    }
+    async function sharedDelete(id) { if (SHARED.on) await AUTH.client.from('messages').delete().eq('id', id); }
+    async function sharedStart() {
+      if (AUTH.mode !== 'supabase' || SHARED.on || !AUTH.client) return;
+      SHARED.on = true;
+      const sb = AUTH.client;
+      try {
+        const st = await sb.from('shared_state').select('*').eq('key', 'discord_servers').maybeSingle();
+        if (st.error) throw st.error;
+        if (st.data && Array.isArray(st.data.data) && st.data.data.length) applyServers(st.data.data);
+        else if (isAdmin()) sharedPushServers();
+        const { data: rows, error } = await sb.from('messages').select('*').order('created_at', { ascending: false }).limit(2000);
+        if (error) throw error;
+        db.discord.messages = {}; db.discord.ata = {};
+        (rows || []).reverse().forEach(sharedAdd);
+        sharedRerender();
+      } catch (e) {
+        SHARED.on = false;
+        console.warn('[discord] servidor', e);
+        showToast('O chat compartilhado ainda não está ativo no servidor (rode o script "supabase-ao-vivo.sql").', 'error');
+        return;
+      }
+      sb.channel('shared-' + Math.random().toString(36).slice(2))
+        .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'messages' }, ({ new: r }) => {
+          if (!r || !sharedAdd(r)) return;
+          sharedRerender();
+          if (r.email !== me.email && r.kind === 'msg' && window.office3D && office3D.sayRemote) office3D.sayRemote(r.email, r.text);
+        })
+        .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'messages' }, ({ old }) => { if (old && sharedRemove(old.id)) sharedRerender(); })
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'shared_state' }, ({ new: r }) => { if (r && r.key === 'discord_servers') applyServers(r.data); })
+        .subscribe();
+    }
+
+    // tudo que muda o estado da pessoa avisa os outros
+    ['dcJoinVoice', 'dcLeaveVoice', 'dcToggleMic', 'dcToggleDeafen', 'dcToggleScreen', 'dcToggleCam', 'switchTab', 'applyAvatar', 'startMic'].forEach(n => {
+      const f = window[n]; if (typeof f !== 'function') return;
+      window[n] = function (...a) { const r = f.apply(this, a); Promise.resolve(r).then(() => liveSync(), () => liveSync()); return r; };
+    });
 
     // Chat do escritório 3D -> #geral
     function officeChatSend(e) {
@@ -2471,6 +2856,7 @@
       save();
       initApp();
       syncTeam(true);
+      liveStart(); sharedStart();
       if (!teamWatch) teamWatch = AUTH.watchProfiles(() => { clearTimeout(syncTeam.t); syncTeam.t = setTimeout(() => syncTeam(), 300); });
       if (isNew || !db.avatars[me.email]) {
         if (!db.avatars[me.email]) randomAvatar();
@@ -2511,6 +2897,7 @@
     }
     async function logoutProfile() {
       if (typeof stopAllMedia === 'function') stopAllMedia();
+      try { if (LIVE.room) LIVE.room.leave(); } catch (e) {}
       try { localStorage.removeItem(SESSION_KEY); } catch (e) {}
       await AUTH.signOut();
       location.reload();
@@ -2579,6 +2966,10 @@
       init,
       updatePlayer: cfg => { if (player) rebuildPlayer(cfg); },
       say: (name, text) => { if (ready && player) showBubble(player, text); },
+      liveUpsert: (k, st, look) => liveUpsert(k, st, look),
+      livePos: (k, d) => livePos(k, d),
+      liveRemove: k => liveRemove(k),
+      sayRemote: (email, text) => { if (!ready) return; for (const r of remotes.values()) if (r.st.email === email && r.ent.obj.visible) showBubble(r.ent, text); },
       setTV: emb => { tvEmbed = emb; tvSuspended = false; mountTV(); },
       suspendTV: () => { if (tvEmbed && !tvSuspended) { tvSuspended = true; mountTV(); } },
       resumeTV: () => { if (tvEmbed && tvSuspended) { tvSuspended = false; mountTV(); } },
@@ -3070,6 +3461,7 @@
       const cfg = window.getAvatarCfg();
       player = createEntity((cfg.name || '').trim() || 'Você', cfg, -0.5, 10.6, true);
       player.obj.rotation.y = Math.PI;
+      if (window.livePeerStates) window.livePeerStates().forEach(p => { liveUpsert(p.key, p.state, true); if (p.pos) livePos(p.key, p.pos); });
       camLook = new THREE.Vector3(-0.5, 2, 10.6);
       camPosV = new THREE.Vector3(-0.5, 7, 20);
 
@@ -5727,6 +6119,7 @@
         }
       });
       entities.forEach(e => {
+        if (!e.obj.visible) return;
         const [x, y] = toMini(e.obj.position.x, e.obj.position.z);
         g.fillStyle = e.color || '#fff'; g.beginPath(); g.arc(x, y, 3, 0, 7); g.fill();
       });
@@ -5736,12 +6129,60 @@
       g.restore();
     }
 
+    // =================== OUTRAS PESSOAS NO ESCRITÓRIO ===================
+    const remotes = new Map();
+    function liveUpsert(key, st, look) {
+      if (!ready || !player) return;
+      let r = remotes.get(key);
+      if (r && look) { scene.remove(r.ent.obj); entities.splice(entities.indexOf(r.ent), 1); r.ent.obj.traverse(o => { if (o.geometry) o.geometry.dispose(); }); }
+      if (!r || look) {
+        const cfg = { ...(st.avatar || {}), name: st.name };
+        const old = r;
+        const ent = createEntity(st.name || 'Pessoa', cfg, old ? old.ent.obj.position.x : -0.5, old ? old.ent.obj.position.z : 10.6, false);
+        if (old) { ent.obj.position.copy(old.ent.obj.position); ent.obj.rotation.y = old.ent.obj.rotation.y; }
+        ent.remote = true; ent.grounded = true;
+        entities.push(ent);
+        r = { ent, st, target: old ? old.target : null, hasPos: old ? old.hasPos : false };
+        remotes.set(key, r);
+      }
+      r.st = st;
+      r.ent.obj.visible = st.place === '3d' && r.hasPos;
+    }
+    function livePos(key, d) {
+      const r = remotes.get(key); if (!r) return;
+      if (!r.hasPos) { r.ent.obj.position.set(d.x, d.y || 0, d.z); r.ent.obj.rotation.y = d.ry || 0; }
+      r.target = d; r.hasPos = true; r.lastT = performance.now();
+      r.ent.obj.visible = r.st.place === '3d';
+    }
+    function liveRemove(key) {
+      const r = remotes.get(key); if (!r) return;
+      scene.remove(r.ent.obj); const i = entities.indexOf(r.ent); if (i >= 0) entities.splice(i, 1);
+      r.ent.obj.traverse(o => { if (o.geometry) o.geometry.dispose(); });
+      remotes.delete(key);
+    }
+    function stepRemotes(dt) {
+      for (const r of remotes.values()) {
+        const d = r.target, o = r.ent.obj; if (!d || !o.visible) continue;
+        const k = Math.min(1, dt * 10);
+        const far = Math.hypot(d.x - o.position.x, d.z - o.position.z) > 6;
+        if (far) o.position.set(d.x, d.y || 0, d.z);
+        else { o.position.x += (d.x - o.position.x) * k; o.position.z += (d.z - o.position.z) * k; o.position.y += ((d.y || 0) - o.position.y) * k; }
+        let dr = (d.ry || 0) - o.rotation.y; dr = Math.atan2(Math.sin(dr), Math.cos(dr)); o.rotation.y += dr * k;
+        r.ent.seat = d.seat ? true : null;
+        r.ent.moving = !!d.mv && !d.seat;
+        r.ent.grounded = true; r.ent.vy = 0;
+        animateEntity(r.ent, dt, d.run ? 1.4 : 1);
+      }
+    }
+
     // =================== LOOP ===================
     function loop() {
       requestAnimationFrame(loop);
       const dt = Math.min(clock.getDelta(), 0.05);
       if (!inOffice() || window.officePanelOpen || window.officeGame === 'fps') return;
       if (pong.active) stepPong(dt); else stepPlayer(dt);
+      stepRemotes(dt);
+      if (window.liveSendPos && player) { const o = player.obj; window.liveSendPos({ x: +o.position.x.toFixed(2), y: +o.position.y.toFixed(2), z: +o.position.z.toFixed(2), ry: +o.rotation.y.toFixed(2), mv: !!player.moving, run: !!keys.shift, seat: player.seat ? 1 : 0 }); }
       stepSmoke(dt);
       stepDoors(dt);
       stepRgb(dt);
