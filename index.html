@@ -747,8 +747,10 @@
     // ficam só neste navegador.
     // =====================================================================
     window.NEXUS_CONFIG = {
-      SUPABASE_URL: 'https://lqbphwatjmhobtyfpxtw.supabase.co',
-      SUPABASE_ANON_KEY: 'sb_publishable_lZ89H4as2mrNiBHczB6SuA_V1bPOSjc'
+      SUPABASE_URL: '',
+      SUPABASE_ANON_KEY: '',
+      // Voz e tela pelo LiveKit Cloud: mude para true depois de configurar a função "livekit-token" (veja o guia)
+      LIVEKIT: false
     };
 
     // =====================================================================
@@ -2159,7 +2161,7 @@
     function liveSync() {
       if (!LIVE.room || !me) return;
       clearTimeout(liveSyncT);
-      liveSyncT = setTimeout(() => { LIVE.room.update(liveMyState()); liveRoute(); liveRender(); }, 40);
+      liveSyncT = setTimeout(() => { LIVE.room.update(liveMyState()); liveRoute(); liveRender(); lkSync(); }, 40);
     }
     const livePeerList = () => [...LIVE.peers.values()].filter(p => p.state && p.state.uid);
     // pessoas únicas (a mesma pessoa pode estar com 2 abas abertas)
@@ -2217,8 +2219,10 @@
       p.gen = (p.gen || 0) + 1;
       const pc = livePc(p);
       liveDc(p, pc.createDataChannel('live', { ordered: false, maxRetransmits: 0 }));
-      p.audioTx = pc.addTransceiver('audio', { direction: 'sendrecv' });
-      p.videoTx = pc.addTransceiver('video', { direction: 'sendrecv' });
+      if (!lkEnabled()) {   // com LiveKit, a conexão direta só leva a posição dos bonecos
+        p.audioTx = pc.addTransceiver('audio', { direction: 'sendrecv' });
+        p.videoTx = pc.addTransceiver('video', { direction: 'sendrecv' });
+      }
       liveRoute(p);
       try {
         await pc.setLocalDescription(await pc.createOffer());
@@ -2326,6 +2330,7 @@
     }
     function liveRemoteScreen() {
       if (dcUI.screen) return null;
+      if (lkEnabled()) return LK.remoteScreen ? { state: { name: LK.remoteScreen.name }, videoStream: LK.remoteScreen.stream } : null;
       return livePeerList().find(p => p.state.screen && liveSame(p) && p.videoStream) || null;
     }
     function liveScreens() {
@@ -2338,6 +2343,7 @@
       }
     }
     function liveLevels() {
+      if (lkEnabled()) return;
       for (const p of LIVE.peers.values()) {
         const lv = p.level && liveSame(p) && p.state.mic ? p.level() : 0;
         const on = lv > 0.03;
@@ -2369,7 +2375,8 @@
     function liveTilesHtml() {
       const key = myVoiceKey(); if (!key) return '';
       return liveInVoice(key).map(p => {
-        const conn = p.direct ? '' : '<span class="absolute top-2 right-2 text-[10px] px-2 py-0.5 rounded-full bg-amber-500/15 text-amber-300 border border-amber-500/30">conectando...</span>';
+        const ok = lkEnabled() ? (lkHas(p.state.uid) && !LK.reconnecting) : p.direct;
+        const conn = ok ? '' : '<span class="absolute top-2 right-2 text-[10px] px-2 py-0.5 rounded-full bg-amber-500/15 text-amber-300 border border-amber-500/30">conectando...</span>';
         return `<div class="dc-tile relative bg-black border-2 border-zinc-800 rounded-xl overflow-hidden flex items-center justify-center min-h-[200px]" data-live="${p.state.uid}">
           ${avatarCircle(p.state.email, p.state.name, 'w-20 h-20 text-2xl')}${conn}
           <div class="absolute bottom-2 left-2 bg-black/80 backdrop-blur px-2 py-1 rounded-md border border-zinc-800 flex items-center gap-1.5 text-[11px] text-zinc-200">
@@ -2457,6 +2464,122 @@
         .on('postgres_changes', { event: '*', schema: 'public', table: 'shared_state' }, ({ new: r }) => { if (r && r.key === 'discord_servers') applyServers(r.data); })
         .subscribe();
     }
+
+    // =====================================================================
+    // VOZ E TELA PELO LIVEKIT (servidor de chamadas: estável em qualquer rede)
+    // =====================================================================
+    const LK = { room: null, key: null, joining: null, speakers: new Set(), remoteScreen: null, audioEls: new Set(), reconnecting: false, failT: null };
+    const lkEnabled = () => AUTH.mode === 'supabase' && !!(window.NEXUS_CONFIG && window.NEXUS_CONFIG.LIVEKIT);
+    const lkRoomName = key => 'nexus-' + String(key).replace(/[^A-Za-z0-9_-]/g, '_').slice(0, 70);
+    async function lkLoad() {
+      if (window.LivekitClient) return window.LivekitClient;
+      for (const u of ['https://cdn.jsdelivr.net/npm/livekit-client@2/dist/livekit-client.umd.js', 'https://unpkg.com/livekit-client@2/dist/livekit-client.umd.js']) {
+        await new Promise(res => { const s = document.createElement('script'); s.src = u; s.onload = res; s.onerror = res; document.head.appendChild(s); });
+        if (window.LivekitClient) return window.LivekitClient;
+      }
+      throw new Error('Não foi possível carregar o LiveKit (verifique a internet ou bloqueadores).');
+    }
+    async function lkLeave() {
+      LK.joining = null; clearTimeout(LK.failT);
+      const r = LK.room; LK.room = null; LK.key = null; LK.speakers.clear(); LK.reconnecting = false;
+      LK.audioEls.forEach(el => { try { el.srcObject = null; el.remove(); } catch (e) {} }); LK.audioEls.clear();
+      if (LK.remoteScreen) { LK.remoteScreen = null; liveScreens(); }
+      if (r) {
+        try {
+          const L = window.LivekitClient;
+          // não deixa o LiveKit desligar o microfone/tela que são nossos
+          for (const pub of r.localParticipant.trackPublications.values()) if (pub.track) await r.localParticipant.unpublishTrack(pub.track, false).catch(() => {});
+          await r.disconnect(false);
+        } catch (e) {}
+      }
+    }
+    async function lkSync() {
+      if (!lkEnabled() || !me) return;
+      const want = myVoiceKey();
+      if (want && LK.key === want) { if (LK.room) lkUpdateLocal(); return; }
+      await lkLeave();
+      if (!want) { liveRender(); return; }
+      const token = {}; LK.joining = token; LK.key = want;
+      try {
+        const L = await lkLoad();
+        const { data, error } = await AUTH.client.functions.invoke('livekit-token', { body: { room: lkRoomName(want) } });
+        if (LK.joining !== token) return;
+        if (error || !data || !data.token) {
+          let msg = (data && data.error) || (error && error.message) || 'sem resposta';
+          try { if (error && error.context && error.context.json) { const j = await error.context.json(); if (j && j.error) msg = j.error; } } catch (e) {}
+          throw new Error(msg);
+        }
+        const room = new L.Room({ adaptiveStream: true, dynacast: true, disconnectOnPageLeave: true, audioCaptureDefaults: { echoCancellation: true, noiseSuppression: true, autoGainControl: true } });
+        const E = L.RoomEvent;
+        room.on(E.TrackSubscribed, (track, pub, part) => {
+          if (track.kind === 'audio') {
+            const el = track.attach(); el.style.display = 'none'; el.muted = !!dcUI.deaf; document.body.appendChild(el); LK.audioEls.add(el);
+          } else if (pub.source === L.Track.Source.ScreenShare || pub.source === 'screen_share') {
+            LK.remoteScreen = { uid: part.identity, name: part.name || 'alguém', stream: new MediaStream([track.mediaStreamTrack]) };
+            liveScreens(); liveRender();
+          }
+        });
+        room.on(E.TrackUnsubscribed, (track, pub, part) => {
+          track.detach().forEach(el => { LK.audioEls.delete(el); el.remove(); });
+          if (track.kind === 'video' && LK.remoteScreen && LK.remoteScreen.uid === part.identity) { LK.remoteScreen = null; liveScreens(); liveRender(); }
+        });
+        room.on(E.ActiveSpeakersChanged, speakers => {
+          const now = new Set(speakers.map(s => s.identity).filter(id => id !== me.id));
+          new Set([...LK.speakers, ...now]).forEach(id => document.querySelectorAll(`[data-live="${id}"]`).forEach(el => el.classList.toggle('speaking', now.has(id))));
+          LK.speakers = now;
+        });
+        room.on(E.ParticipantConnected, () => liveRender());
+        room.on(E.ParticipantDisconnected, () => liveRender());
+        room.on(E.Reconnecting, () => { LK.reconnecting = true; liveRender(); });
+        room.on(E.Reconnected, () => { LK.reconnecting = false; liveRender(); });
+        room.on(E.AudioPlaybackStatusChanged, () => { if (!room.canPlaybackAudio) showToast('Clique em qualquer lugar da página para ativar o som da chamada.', 'info'); });
+        room.on(E.Disconnected, () => {
+          if (LK.room !== room) return;
+          LK.room = null; LK.key = null; liveRender();
+          if (myVoiceKey()) { clearTimeout(LK.failT); LK.failT = setTimeout(lkSync, 2000); }   // caiu: tenta voltar sozinho
+        });
+        await room.connect(data.url, data.token);
+        if (LK.joining !== token) { room.disconnect(); return; }
+        LK.room = room;
+        try { await room.startAudio(); } catch (e) {}
+        await lkUpdateLocal();
+        liveRender();
+      } catch (e) {
+        if (LK.joining !== token) return;
+        LK.key = null; LK.room = null;
+        console.warn('[voz] LiveKit', e);
+        showToast('Não foi possível conectar a voz: ' + (e.message || e), 'error');
+        liveRender();
+      }
+    }
+    async function lkUpdateLocal() {
+      const room = LK.room, L = window.LivekitClient; if (!room || !L) return;
+      const lp = room.localParticipant, S = L.Track.Source;
+      try {
+        // microfone
+        const mic = dcUI.micStream && dcUI.micStream.getAudioTracks()[0];
+        let micPub = lp.getTrackPublication(S.Microphone);
+        if (mic && (!micPub || !micPub.track || micPub.track.mediaStreamTrack !== mic)) {
+          if (micPub && micPub.track) await lp.unpublishTrack(micPub.track, false);
+          micPub = await lp.publishTrack(mic, { source: S.Microphone, name: 'microfone', dtx: true, red: true });
+        }
+        if (micPub) {
+          const mute = !dcUI.mic || !!dcUI.deaf;
+          if (mute && !micPub.isMuted) await micPub.mute(); else if (!mute && micPub.isMuted) await micPub.unmute();
+          if (mic) mic.enabled = !mute;
+        }
+        // tela
+        const scr = dcUI.screen && dcUI.screenStream && dcUI.screenStream.getVideoTracks()[0];
+        const scrPub = lp.getTrackPublication(S.ScreenShare);
+        if (scr && (!scrPub || !scrPub.track || scrPub.track.mediaStreamTrack !== scr)) {
+          if (scrPub && scrPub.track) await lp.unpublishTrack(scrPub.track, false);
+          await lp.publishTrack(scr, { source: S.ScreenShare, name: 'tela' });
+        } else if (!scr && scrPub && scrPub.track) await lp.unpublishTrack(scrPub.track, false);
+      } catch (e) { console.warn('[voz] publicar', e); }
+      LK.audioEls.forEach(el => { el.muted = !!dcUI.deaf; });
+    }
+    const lkHas = uid => !!(LK.room && LK.room.remoteParticipants && [...LK.room.remoteParticipants.values()].some(p => p.identity === uid));
+    document.addEventListener('click', () => { if (LK.room && !LK.room.canPlaybackAudio) LK.room.startAudio().catch(() => {}); });
 
     // tudo que muda o estado da pessoa avisa os outros
     ['dcJoinVoice', 'dcLeaveVoice', 'dcToggleMic', 'dcToggleDeafen', 'dcToggleScreen', 'dcToggleCam', 'switchTab', 'applyAvatar', 'startMic'].forEach(n => {
@@ -2898,6 +3021,7 @@
     async function logoutProfile() {
       if (typeof stopAllMedia === 'function') stopAllMedia();
       try { if (LIVE.room) LIVE.room.leave(); } catch (e) {}
+      try { await lkLeave(); } catch (e) {}
       try { localStorage.removeItem(SESSION_KEY); } catch (e) {}
       await AUTH.signOut();
       location.reload();
