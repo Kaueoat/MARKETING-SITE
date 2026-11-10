@@ -3,58 +3,129 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>NexusMarketing - Dashboard Executivo</title>
+  <title>Hypno — Dashboard</title>
   <!-- Tailwind CSS CDN -->
   <script src="https://cdn.tailwindcss.com"></script>
-  <!-- Google Fonts: Inter -->
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+  <!-- Google Fonts: Inter + Space Grotesk -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet">
   <!-- Lucide Icons -->
   <script src="https://cdn.jsdelivr.net/npm/lucide@latest/dist/umd/lucide.min.js" onerror="this.remove();var s=document.createElement('script');s.src='https://unpkg.com/lucide@latest';document.head.appendChild(s);"></script>
+  <!-- HYPNO: remapeia a paleta do Tailwind para os tokens da marca (neutros + 1 acento roxo) -->
+  <script>
+    window.tailwind = window.tailwind || {};
+    tailwind.config = { theme: { extend: { colors: {
+      black: '#0B0B0F', white: '#FAFAFA',
+      zinc: { 50:'#FAFAFA',100:'#F1F1F4',200:'#E4E4E9',300:'#C7C7D1',400:'#A1A1AD',500:'#71717E',600:'#5B5B66',700:'#3A3A45',800:'#2A2A33',900:'#1E1E25',950:'#17171D' },
+      blue: { 300:'#D9A6FF',400:'#C45CFF',500:'#C45CFF',600:'#B026FF',700:'#8A00E6',800:'#6D00B5',900:'#2A1440',950:'#1A0B2A' },
+      fuchsia: { 300:'#D9A6FF',400:'#C45CFF',500:'#C45CFF',600:'#B026FF' },
+      emerald: { 300:'#E7C9FF',400:'#C45CFF',500:'#C45CFF',600:'#B026FF',700:'#8A00E6' },
+      amber: { 300:'#D9A6FF',400:'#C45CFF',500:'#C45CFF',600:'#B026FF' },
+      red: { 300:'#FF8A98',400:'#FF5A6E',500:'#FF5A6E',600:'#E23048',700:'#C01E38',900:'#3A1420' }
+    }, fontFamily: { sans:['Inter','system-ui','sans-serif'], display:['"Space Grotesk"','Inter','system-ui','sans-serif'] } } } };
+  </script>
   <style>
-    body {
-      font-family: 'Inter', sans-serif;
-      background-color: #000000;
-      color: #f4f4f5;
+    :root{
+      --surface:#0B0B0F; --raised:#17171D; --ink:#FAFAFA; --ink-muted:#A1A1AD; --line:#2A2A33;
+      --accent:#C45CFF; --accent-2:#B026FF; --accent-text:#D9A6FF; --accent-soft:#2A1440; --on-accent:#0B0B0F; --danger:#FF5A6E;
+      --font-display:"Space Grotesk","Inter",system-ui,sans-serif;
+      --glow-sm:0 0 12px rgba(196,92,255,.55); --glow-md:0 0 32px rgba(196,92,255,.60);
     }
-    /* Custom scrollbar for dark theme */
-    ::-webkit-scrollbar { width: 6px; height: 6px; }
-    ::-webkit-scrollbar-track { background: #09090b; }
-    ::-webkit-scrollbar-thumb { background: #27272a; border-radius: 4px; }
-    ::-webkit-scrollbar-thumb:hover { background: #3f3f46; }
+    html,body{ background-color:var(--surface); }
+    body{ font-family:'Inter',system-ui,sans-serif; color:var(--ink); font-variant-numeric:tabular-nums; }
+    /* grão + halftone, só no fundo da página (nunca sobre dados) */
+    body::before{ content:""; position:fixed; inset:0; z-index:-2; pointer-events:none; background:
+      radial-gradient(1100px 700px at calc(18% + var(--hx,0px)) -8%, rgba(176,38,255,.10), transparent 60%),
+      radial-gradient(900px 600px at calc(100% - var(--hx,0px)) 108%, rgba(196,92,255,.06), transparent 55%),
+      var(--surface); }
+    body::after{ content:""; position:fixed; inset:0; z-index:-1; pointer-events:none; opacity:.55;
+      background-image: radial-gradient(rgba(255,255,255,.055) 0.75px, transparent 0.9px);
+      background-size:22px 22px; background-position: var(--hx,0px) var(--hy,0px);
+      -webkit-mask-image:radial-gradient(130% 90% at 50% 0%, #000 35%, transparent 90%);
+              mask-image:radial-gradient(130% 90% at 50% 0%, #000 35%, transparent 90%); }
+    main{ background:transparent !important; }
+    /* filme de grão sutil no cabeçalho */
+    header.hyp-grain{ position:relative; }
+    header.hyp-grain::after{ content:""; position:absolute; inset:0; pointer-events:none; opacity:.12; mix-blend-mode:overlay;
+      background-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='120' height='120'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/><feColorMatrix type='saturate' values='0'/></filter><rect width='100%25' height='100%25' filter='url(%23n)'/></svg>"); }
 
-    /* Discord: indicador de quem está falando */
+    /* tipografia da marca */
+    h1,h2,h3,.hyp-display{ font-family:var(--font-display); letter-spacing:-0.02em; }
+    .hyp-wordmark{ font-family:var(--font-display); font-weight:700; letter-spacing:-0.03em; }
+
+    /* sem sombras pretas: só brilho roxo controlado */
+    [class*="shadow-"]{ box-shadow:none !important; }
+    .hyp-glow{ box-shadow:var(--glow-md) !important; }
+    .hyp-kpi{ color:var(--accent) !important; text-shadow:0 0 20px rgba(196,92,255,.45); }
+
+    /* scrollbar */
+    ::-webkit-scrollbar { width: 8px; height: 8px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: #2A2A33; border-radius: 999px; }
+    ::-webkit-scrollbar-thumb:hover { background: #3A3A45; }
+    ::selection{ background:rgba(196,92,255,.35); color:#fff; }
+
+    /* voz: indicador de quem fala (roxo, nunca verde) */
     .dc-tile { transition: border-color .15s, box-shadow .15s; }
-    .dc-tile.speaking { border-color: #22c55e !important; box-shadow: 0 0 0 3px rgba(34,197,94,.25); }
-    .speaking .live-ring { box-shadow: 0 0 0 2px #22c55e; }
-    .swatch { width: 26px; height: 26px; border-radius: 8px; border: 2px solid #27272a; transition: transform .1s; }
+    .dc-tile.speaking { border-color: var(--accent) !important; box-shadow: 0 0 0 3px rgba(196,92,255,.30); }
+    .speaking .live-ring { box-shadow: 0 0 0 2px var(--accent); }
+
+    .swatch { width: 26px; height: 26px; border-radius: 6px; border: 1px solid var(--line); transition: transform .1s; }
     .swatch:hover { transform: scale(1.1); }
-    .swatch.active { border-color: #fff; box-shadow: 0 0 0 2px #3b82f6; }
+    .swatch.active { border-color: var(--accent); box-shadow: 0 0 0 2px var(--accent); }
     #office-canvas { touch-action: none; cursor: grab; }
     #office-canvas:active { cursor: grabbing; }
-    .toast-enter { animation: toastIn .25s ease-out; }
-    @keyframes toastIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
-    .lbl { display: block; font-size: 12px; font-weight: 600; color: #d4d4d8; margin-bottom: 4px; }
-    .inp { width: 100%; background: #000; border: 1px solid #27272a; border-radius: 8px; padding: 10px; font-size: 14px; color: #e4e4e7; outline: none; }
-    .inp:focus { border-color: #3b82f6; }
-    .btn-primary { padding: 8px 16px; font-size: 12px; font-weight: 600; color: #fff; border-radius: 8px; background: linear-gradient(90deg, #2563eb, #dc2626); }
-    .btn-primary:hover { opacity: .9; }
+    .toast-enter { animation: toastIn .3s cubic-bezier(.2,.7,.2,1); }
+    @keyframes toastIn { from { opacity: 0; transform: translateY(8px); filter:blur(4px);} to { opacity: 1; transform: none; filter:none; } }
+
+    .lbl { display: block; font-size: 12px; font-weight: 600; color: var(--ink-muted); margin-bottom: 4px; letter-spacing:.02em; }
+    .inp { width: 100%; background: var(--surface); border: 1px solid var(--line); border-radius: 6px; padding: 10px; font-size: 14px; color: var(--ink); outline: none; transition:border-color .15s, box-shadow .15s; }
+    .inp:focus { border-color: var(--accent); box-shadow: var(--glow-sm); }
     input[type=date].inp { color-scheme: dark; }
+
+    /* botões em pílula, estilo liquid-glass; o primário tem texto roxo */
+    .btn-primary, .hyp-btn{
+      display:inline-flex; align-items:center; justify-content:center; gap:8px;
+      padding: 9px 18px; font-size: 13px; font-weight: 600; border-radius: 999px;
+      color: var(--ink); background: rgba(255,255,255,.045); border:1px solid var(--line);
+      -webkit-backdrop-filter:blur(8px); backdrop-filter:blur(8px);
+      box-shadow: inset 0 1px 0 rgba(255,255,255,.16), inset 0 -1px 0 rgba(255,255,255,.04);
+      transition: transform .15s, box-shadow .15s, border-color .15s; cursor:pointer;
+    }
+    .btn-primary, .hyp-btn-primary{ color: var(--accent); border-color: color-mix(in srgb, var(--accent) 42%, transparent);
+      box-shadow: inset 0 1px 0 rgba(255,255,255,.20), inset 0 0 0 1px rgba(196,92,255,.18); }
+    .btn-primary:hover, .hyp-btn:hover{ transform: scale(1.05); }
+    .btn-primary:hover, .hyp-btn-primary:hover{ box-shadow: inset 0 1px 0 rgba(255,255,255,.24), var(--glow-sm); }
+
+    /* preenchimento de acento (chips ativos, ladrilhos de marca) */
+    .hyp-accentfill{ background:var(--accent-soft) !important; color:var(--accent-text) !important;
+      border:1px solid color-mix(in srgb, var(--accent) 35%, transparent) !important; border-radius:999px !important;
+      transition:transform .15s, box-shadow .15s; }
+    .hyp-accentfill:hover{ transform:scale(1.03); box-shadow:var(--glow-sm); }
+    .hyp-accentfill [data-lucide], .hyp-accentfill svg{ color:var(--accent-text) !important; }
+
+    /* entrada de conteúdo (respeita prefers-reduced-motion) */
+    .tab-content:not(.hidden){ animation: hypIn .45s cubic-bezier(.2,.7,.2,1); }
+    @keyframes hypIn { from { opacity:0; transform:translateY(6px); filter:blur(4px);} to { opacity:1; transform:none; filter:none; } }
+    @media (prefers-reduced-motion: reduce){ *{ animation:none !important; transition:none !important; } }
   </style>
 </head>
 <body class="h-screen flex overflow-hidden">
-  <div id="welcome" class="hidden fixed inset-0 z-[200] bg-black flex items-center justify-center p-6 overflow-y-auto" style="background:radial-gradient(1200px 600px at 20% 0%, rgba(37,99,235,.18), transparent 60%), radial-gradient(900px 500px at 100% 100%, rgba(220,38,38,.14), transparent 60%), #000"></div>
+  <div id="welcome" class="hidden fixed inset-0 z-[200] bg-black flex items-center justify-center p-6 overflow-y-auto" style="background:radial-gradient(1100px 620px at 18% -5%, rgba(176,38,255,.16), transparent 60%), radial-gradient(900px 560px at 100% 105%, rgba(196,92,255,.08), transparent 55%), #0B0B0F"></div>
 
 
   <!-- SIDEBAR NAVIGATION -->
   <aside class="w-64 bg-zinc-950 border-r border-zinc-800/80 flex-col justify-between hidden md:flex shrink-0">
     <div>
-      <div class="p-6 border-b border-zinc-800/80 flex items-center gap-3">
-        <div class="p-2.5 bg-gradient-to-tr from-blue-600 to-red-600 rounded-xl shadow-lg shadow-blue-600/30">
-          <i data-lucide="trending-up" class="w-6 h-6 text-white"></i>
-        </div>
-        <div>
-          <h1 class="font-bold text-lg text-white leading-tight tracking-wide">NexusMarketing</h1>
-          <p class="text-xs text-blue-400 font-semibold uppercase tracking-wider">Dashboard Executivo</p>
+      <div class="p-6 border-b border-zinc-800/80 flex items-center gap-2.5">
+        <!-- HYPNO-LOGO: troque este bloco pelo hypno-lockup-dark.svg oficial (altura 24-28px) -->
+        <span id="hyp-symbol" class="shrink-0 inline-flex items-center justify-center w-7 h-7" aria-hidden="true">
+          <svg viewBox="0 0 48 48" width="28" height="28" fill="none"><path d="M6 24c6-11 30-11 36 0-6 11-30 11-36 0Z" stroke="#C45CFF" stroke-width="2.5"/><path d="M8 20h14M8 24h12M8 28h15" stroke="#C45CFF" stroke-width="2" stroke-linecap="round" opacity="0.9"/><circle cx="30" cy="24" r="4.5" fill="#C45CFF"/></svg>
+        </span>
+        <div class="leading-none">
+          <h1 class="hyp-wordmark text-[22px] text-white leading-none">Hypno</h1>
+          <p class="text-[10px] text-zinc-400 font-semibold uppercase tracking-[0.18em] mt-1">Studio</p>
         </div>
       </div>
 
@@ -69,15 +140,14 @@
 
       <!-- Destaque: Escritório 3D -->
       <div class="px-4 mt-6">
-        <button onclick="switchTab('office3d')" data-tab3d class="group relative w-full overflow-hidden rounded-2xl p-[1.5px] bg-gradient-to-r from-blue-600 via-fuchsia-500 to-red-600 shadow-lg shadow-blue-900/40 hover:shadow-red-900/40 transition">
-          <span class="absolute inset-0 bg-gradient-to-r from-blue-600 via-fuchsia-500 to-red-600 blur-md opacity-60 group-hover:opacity-90 transition animate-pulse"></span>
-          <span class="relative flex items-center gap-3 rounded-[14px] bg-zinc-950 group-hover:bg-zinc-950/80 px-4 py-4 transition">
-            <span class="p-2 rounded-xl bg-gradient-to-tr from-blue-600 to-red-600"><i data-lucide="box" class="w-5 h-5 text-white"></i></span>
+        <button onclick="switchTab('office3d')" data-tab3d class="group relative w-full rounded-2xl border border-[#C45CFF]/45 bg-[#2A1440] hover:bg-[#33174f] transition hover:[box-shadow:0_0_12px_rgba(196,92,255,.55)]">
+          <span class="relative flex items-center gap-3 px-4 py-4">
+            <span class="hyp-accentfill !rounded-xl p-2"><i data-lucide="box" class="w-5 h-5"></i></span>
             <span class="text-left">
               <span class="block text-sm font-bold text-white">Entrar no Escritório 3D</span>
               <span class="block text-[11px] text-zinc-400">Explore o workspace virtual</span>
             </span>
-            <i data-lucide="arrow-right" class="w-4 h-4 text-zinc-400 ml-auto group-hover:translate-x-1 transition"></i>
+            <i data-lucide="arrow-right" class="w-4 h-4 text-[#D9A6FF] ml-auto group-hover:translate-x-1 transition"></i>
           </span>
         </button>
       </div>
@@ -85,10 +155,10 @@
 
     <div class="p-4 border-t border-zinc-800/80 bg-zinc-950">
       <div class="flex items-center gap-3 p-2.5 rounded-xl bg-zinc-900/80 border border-zinc-800">
-        <div id="sidebar-initials" class="w-9 h-9 shrink-0 rounded-full bg-gradient-to-r from-blue-600 to-red-600 flex items-center justify-center font-bold text-white text-sm shadow-md"></div>
+        <div id="sidebar-initials" class="w-9 h-9 shrink-0 rounded-full bg-[#2A1440] border border-[#C45CFF]/35 flex items-center justify-center font-bold text-[#D9A6FF] text-sm"></div>
         <div class="overflow-hidden flex-1">
           <p id="sidebar-name" class="text-sm font-semibold text-zinc-100 truncate"></p>
-          <p id="sidebar-role" class="text-[11px] text-blue-400 font-medium truncate"></p>
+          <p id="sidebar-role" class="text-[11px] text-[#D9A6FF] font-medium truncate"></p>
         </div>
         <button onclick="logoutProfile()" title="Trocar de perfil / sair" class="p-2 rounded-lg text-zinc-500 hover:text-white hover:bg-zinc-800 transition"><i data-lucide="log-out" class="w-4 h-4"></i></button>
       </div>
@@ -98,14 +168,14 @@
   <!-- MAIN CONTENT AREA -->
   <main class="flex-1 flex flex-col min-w-0 overflow-y-auto bg-black">
 
-    <header class="h-16 border-b border-zinc-800/80 px-4 md:px-6 flex items-center justify-between gap-3 sticky top-0 bg-black/90 backdrop-blur-md z-30 shrink-0">
+    <header class="hyp-grain h-16 border-b border-zinc-800/80 px-4 md:px-6 flex items-center justify-between gap-3 sticky top-0 bg-black/90 backdrop-blur-md z-30 shrink-0">
       <h2 id="page-title" class="text-lg md:text-xl font-bold text-white tracking-wide truncate">Visão Geral</h2>
       <div class="flex items-center gap-3">
         <div class="relative hidden sm:block">
           <i data-lucide="search" class="w-4 h-4 absolute left-3 top-1/2 transform -translate-y-1/2 text-zinc-500"></i>
           <input id="global-search" type="text" oninput="onSearch(this.value)" placeholder="Pesquisar..." class="bg-zinc-900 text-zinc-200 pl-9 pr-4 py-1.5 text-sm rounded-lg border border-zinc-800 focus:outline-none focus:border-blue-500 w-56 lg:w-64 transition-all" />
         </div>
-        <button id="header-action-btn" onclick="headerAction()" class="hidden items-center gap-2 bg-gradient-to-r from-red-600 to-blue-600 hover:from-red-500 hover:to-blue-500 text-white text-sm font-medium px-4 py-2 rounded-lg transition shadow-lg shadow-red-600/30 whitespace-nowrap">
+        <button id="header-action-btn" onclick="headerAction()" class="hidden items-center gap-2 hyp-accentfill text-white text-sm font-medium px-4 py-2 rounded-lg transition shadow-lg shadow-red-600/30 whitespace-nowrap">
           <i data-lucide="plus" class="w-4 h-4"></i> <span></span>
         </button>
       </div>
@@ -119,7 +189,7 @@
       <button onclick="switchTab('inventory')" data-mtab="inventory" class="m-btn"><i data-lucide="package" class="w-3.5 h-3.5"></i> Estoque</button>
       <button onclick="switchTab('financial')" data-mtab="financial" class="m-btn"><i data-lucide="bar-chart-3" class="w-3.5 h-3.5"></i> Financeiro</button>
       <button onclick="switchTab('team')" data-mtab="team" class="m-btn"><i data-lucide="users" class="w-3.5 h-3.5"></i> Equipe</button>
-      <button onclick="switchTab('office3d')" data-tab3d class="flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-bold whitespace-nowrap bg-gradient-to-r from-blue-600 to-red-600 text-white shadow-lg shadow-blue-900/40"><i data-lucide="box" class="w-3.5 h-3.5"></i> Escritório 3D</button>
+      <button onclick="switchTab('office3d')" data-tab3d class="hyp-accentfill flex items-center gap-1.5 px-3 py-2 text-xs font-bold whitespace-nowrap"><i data-lucide="box" class="w-3.5 h-3.5"></i> Escritório 3D</button>
     </div>
 
     <div class="p-4 md:p-6 space-y-6">
@@ -136,7 +206,7 @@
           </div>
           <div class="bg-zinc-950 border border-zinc-800/80 p-5 rounded-2xl hover:border-red-500/50 transition">
             <div class="flex justify-between items-start">
-              <div><p class="text-xs font-medium text-zinc-400 uppercase tracking-wider">Lucro Líquido Hoje</p><h3 id="ov-net" class="text-2xl font-bold text-red-500 mt-1">R$ 0,00</h3></div>
+              <div><p class="text-xs font-medium text-zinc-400 uppercase tracking-wider">Lucro Líquido Hoje</p><h3 id="ov-net" class="hyp-kpi text-2xl font-bold mt-1">R$ 0,00</h3></div>
               <div class="p-2.5 bg-red-500/10 text-red-400 rounded-xl border border-red-500/30"><i data-lucide="dollar-sign" class="w-5 h-5"></i></div>
             </div>
             <div class="mt-3 text-xs text-zinc-500" id="ov-net-sub">—</div>
@@ -201,28 +271,28 @@
 
         <div class="grid grid-cols-1 md:grid-cols-4 gap-4 items-start" id="kanban-board">
           <div class="bg-zinc-950 border border-zinc-800/80 rounded-xl p-3 flex flex-col min-h-[500px]">
-            <div class="flex justify-between items-center pb-3 mb-3 border-b-2 border-zinc-700">
+            <div class="flex justify-between items-center pb-3 mb-3 border-b border-zinc-800">
               <h4 class="font-bold text-sm text-zinc-200">A Fazer</h4>
               <span id="count-todo" class="bg-zinc-900 text-blue-400 border border-zinc-800 text-xs px-2 py-0.5 rounded-full font-bold">0</span>
             </div>
             <div id="col-todo" class="space-y-3 flex-1"></div>
           </div>
           <div class="bg-zinc-950 border border-zinc-800/80 rounded-xl p-3 flex flex-col min-h-[500px]">
-            <div class="flex justify-between items-center pb-3 mb-3 border-b-2 border-blue-500">
+            <div class="flex justify-between items-center pb-3 mb-3 border-b border-zinc-800">
               <h4 class="font-bold text-sm text-zinc-200">Em Andamento</h4>
               <span id="count-in_progress" class="bg-zinc-900 text-blue-400 border border-zinc-800 text-xs px-2 py-0.5 rounded-full font-bold">0</span>
             </div>
             <div id="col-in_progress" class="space-y-3 flex-1"></div>
           </div>
           <div class="bg-zinc-950 border border-zinc-800/80 rounded-xl p-3 flex flex-col min-h-[500px]">
-            <div class="flex justify-between items-center pb-3 mb-3 border-b-2 border-red-500">
+            <div class="flex justify-between items-center pb-3 mb-3 border-b border-zinc-800">
               <h4 class="font-bold text-sm text-zinc-200">Em Revisão</h4>
               <span id="count-review" class="bg-zinc-900 text-blue-400 border border-zinc-800 text-xs px-2 py-0.5 rounded-full font-bold">0</span>
             </div>
             <div id="col-review" class="space-y-3 flex-1"></div>
           </div>
           <div class="bg-zinc-950 border border-zinc-800/80 rounded-xl p-3 flex flex-col min-h-[500px]">
-            <div class="flex justify-between items-center pb-3 mb-3 border-b-2 border-emerald-500">
+            <div class="flex justify-between items-center pb-3 mb-3 border-b border-zinc-800">
               <h4 class="font-bold text-sm text-zinc-200">Concluído</h4>
               <span id="count-done" class="bg-zinc-900 text-blue-400 border border-zinc-800 text-xs px-2 py-0.5 rounded-full font-bold">0</span>
             </div>
@@ -276,18 +346,18 @@
 
         <!-- Tela de carregamento -->
         <div id="office-loading" class="absolute inset-0 z-30 bg-black flex flex-col items-center justify-center gap-5 px-6 text-center">
-          <div class="p-3 bg-gradient-to-tr from-blue-600 to-red-600 rounded-2xl shadow-lg shadow-blue-600/30">
-            <i data-lucide="box" class="w-8 h-8 text-white"></i>
+          <div class="hyp-accentfill !rounded-2xl p-3">
+            <i data-lucide="box" class="w-8 h-8"></i>
           </div>
           <div>
-            <h3 class="text-xl font-bold text-white">Escritório Virtual NexusMarketing</h3>
+            <h3 class="text-xl font-bold text-white">Escritório Virtual Hypno</h3>
             <p id="office-load-text" class="text-sm text-zinc-400 mt-1">Preparando o ambiente...</p>
           </div>
           <div class="w-64 h-1.5 bg-zinc-900 rounded-full overflow-hidden">
-            <div id="office-progress" class="h-full w-0 bg-gradient-to-r from-blue-600 to-red-600 transition-all duration-300"></div>
+            <div id="office-progress" class="h-full w-0 bg-[#C45CFF] transition-all duration-300"></div>
           </div>
           <div id="office-load-actions" class="hidden flex gap-2">
-            <button onclick="office3D.init()" class="px-4 py-2 text-xs font-semibold bg-gradient-to-r from-blue-600 to-red-600 text-white rounded-lg">Tentar novamente</button>
+            <button onclick="office3D.init()" class="hyp-btn hyp-btn-primary px-4 py-2 text-xs">Tentar novamente</button>
             <button onclick="switchTab('overview')" class="px-4 py-2 text-xs font-semibold bg-zinc-900 border border-zinc-800 text-zinc-300 rounded-lg">Voltar ao dashboard</button>
           </div>
         </div>
@@ -349,7 +419,7 @@
         <!-- Chat -->
         <form onsubmit="officeChatSend(event)" class="absolute bottom-3 right-3 left-3 lg:left-auto lg:w-80 z-10 flex gap-2">
           <input id="office-chat-input" type="text" maxlength="120" placeholder="Falar no escritório (Enter)..." class="flex-1 bg-black/80 backdrop-blur text-xs text-zinc-200 border border-zinc-800 rounded-xl px-3 py-2.5 focus:outline-none focus:border-blue-500" />
-          <button type="submit" class="px-3 bg-gradient-to-r from-blue-600 to-red-600 text-white rounded-xl hover:opacity-90 transition">
+          <button type="submit" class="px-3 hyp-accentfill text-white rounded-xl hover:opacity-90 transition">
             <i data-lucide="send" class="w-4 h-4"></i>
           </button>
         </form>
@@ -445,7 +515,7 @@
             <div class="h-14 px-5 flex items-center justify-between gap-3 border-b border-zinc-800 shrink-0">
               <div id="office-panel-title" class="flex items-center gap-2 text-white font-bold text-sm md:text-base truncate"></div>
               <div class="flex items-center gap-2">
-                <button id="office-panel-action" class="hidden items-center gap-1.5 bg-gradient-to-r from-red-600 to-blue-600 text-white text-xs font-semibold px-3 py-2 rounded-lg">
+                <button id="office-panel-action" class="hidden items-center gap-1.5 hyp-accentfill text-white text-xs font-semibold px-3 py-2 rounded-lg">
                   <i data-lucide="plus" class="w-4 h-4"></i> <span>Novo</span>
                 </button>
                 <button onclick="closeOfficePanel()" title="Fechar (Esc)" class="h-9 px-3 rounded-lg bg-zinc-900 border border-zinc-800 text-zinc-300 hover:text-white text-xs font-semibold flex items-center gap-1.5">
@@ -473,7 +543,7 @@
             <button onclick="switchInventoryType('digital')" id="inv-btn-digital" class="px-4 py-2 rounded-lg text-sm font-semibold transition">Infoprodutos</button>
             <button onclick="switchInventoryType('physical')" id="inv-btn-physical" class="px-4 py-2 rounded-lg text-sm font-semibold transition">Produtos Físicos</button>
           </div>
-          <button onclick="openProductModal()" class="flex items-center gap-2 bg-gradient-to-r from-blue-600 to-red-600 text-white text-xs font-semibold px-4 py-2 rounded-xl"><i data-lucide="plus" class="w-4 h-4"></i> Novo produto</button>
+          <button onclick="openProductModal()" class="flex items-center gap-2 hyp-accentfill text-white text-xs font-semibold px-4 py-2 rounded-xl"><i data-lucide="plus" class="w-4 h-4"></i> Novo produto</button>
         </div>
 
         <div class="bg-zinc-950 border border-zinc-800 rounded-2xl overflow-hidden">
@@ -511,12 +581,12 @@
               <option value="all">Todo o período</option>
             </select>
           </div>
-          <button onclick="openTxModal()" class="flex items-center gap-2 bg-gradient-to-r from-blue-600 to-red-600 text-white text-xs font-semibold px-4 py-2 rounded-xl"><i data-lucide="plus" class="w-4 h-4"></i> Novo lançamento</button>
+          <button onclick="openTxModal()" class="flex items-center gap-2 hyp-accentfill text-white text-xs font-semibold px-4 py-2 rounded-xl"><i data-lucide="plus" class="w-4 h-4"></i> Novo lançamento</button>
         </div>
 
         <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
           <div class="bg-zinc-950 border border-zinc-800/80 p-5 rounded-2xl"><span class="text-xs text-zinc-400 font-medium uppercase">Faturamento Bruto</span><p id="fin-gross" class="text-2xl font-extrabold text-white mt-1">R$ 0</p><span id="fin-gross-sub" class="text-xs text-zinc-500 mt-2 block">—</span></div>
-          <div class="bg-zinc-950 border border-zinc-800/80 p-5 rounded-2xl"><span class="text-xs text-zinc-400 font-medium uppercase">Lucro Líquido</span><p id="fin-net" class="text-2xl font-extrabold text-red-500 mt-1">R$ 0</p><span id="fin-net-sub" class="text-xs text-zinc-500 mt-2 block">—</span></div>
+          <div class="bg-zinc-950 border border-zinc-800/80 p-5 rounded-2xl"><span class="text-xs text-zinc-400 font-medium uppercase">Lucro Líquido</span><p id="fin-net" class="hyp-kpi text-2xl font-extrabold mt-1">R$ 0</p><span id="fin-net-sub" class="text-xs text-zinc-500 mt-2 block">—</span></div>
           <div class="bg-zinc-950 border border-zinc-800/80 p-5 rounded-2xl"><span class="text-xs text-zinc-400 font-medium uppercase">ROAS</span><p id="fin-roas" class="text-2xl font-extrabold text-blue-400 mt-1">—</p><span id="fin-roas-sub" class="text-xs text-zinc-500 mt-2 block">—</span></div>
           <div class="bg-zinc-950 border border-zinc-800/80 p-5 rounded-2xl"><span class="text-xs text-zinc-400 font-medium uppercase">CAC (por venda)</span><p id="fin-cac" class="text-2xl font-extrabold text-red-400 mt-1">—</p><span class="text-xs text-zinc-500 mt-2 block">Anúncios ÷ unidades vendidas</span></div>
           <div class="bg-zinc-950 border border-zinc-800/80 p-5 rounded-2xl"><span class="text-xs text-zinc-400 font-medium uppercase">Ticket Médio</span><p id="fin-ticket" class="text-2xl font-extrabold text-white mt-1">—</p><span id="fin-ticket-sub" class="text-xs text-zinc-500 mt-2 block">—</span></div>
@@ -563,7 +633,7 @@
               <h3 class="text-lg font-bold text-white">Membros da Equipe</h3>
               <p class="text-xs text-zinc-400">Quem cria conta no site aparece em “Solicitações de acesso” para você aprovar. Aqui você muda permissões, bloqueia ou remove.</p>
             </div>
-            <button onclick="openMemberModal()" title="Libera um e-mail antes da pessoa criar a conta" class="flex items-center gap-2 bg-gradient-to-r from-blue-600 to-red-600 text-white text-xs font-semibold px-4 py-2 rounded-xl"><i data-lucide="mail-check" class="w-4 h-4"></i> Liberar e-mail</button>
+            <button onclick="openMemberModal()" title="Libera um e-mail antes da pessoa criar a conta" class="flex items-center gap-2 hyp-accentfill text-white text-xs font-semibold px-4 py-2 rounded-xl"><i data-lucide="mail-check" class="w-4 h-4"></i> Liberar e-mail</button>
           </div>
           <div class="overflow-x-auto">
             <table class="w-full text-left text-sm">
@@ -1079,13 +1149,13 @@
     const fmtDate = s => { if (!s) return '—'; const [y, m, d] = s.split('-'); return `${d}/${m}/${y}`; };
     const MONTHS = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
     const initialsOf = n => String(n || '?').split(/\s+/).filter(Boolean).slice(0, 2).map(w => w[0]).join('').toUpperCase() || '?';
-    const PALETTE = ['#2563eb', '#dc2626', '#9333ea', '#f59e0b', '#10b981', '#0ea5e9', '#ec4899', '#64748b'];
+    const PALETTE = ['#3A3A45', '#5B5B66', '#2A1440', '#4A4A55', '#6B4A80', '#71717E', '#44444F', '#8A00E6'];
     const colorFor = s => { let h = 0; for (const c of String(s)) h = (h * 31 + c.charCodeAt(0)) >>> 0; return PALETTE[h % PALETTE.length]; };
     function refreshIcons() { if (window.lucide) lucide.createIcons(); }
     function showToast(msg, type = 'info') {
       const box = document.getElementById('toasts');
       const el = document.createElement('div');
-      const color = type === 'error' ? 'border-red-500/50' : type === 'success' ? 'border-emerald-500/50' : 'border-blue-500/50';
+      const color = type === 'error' ? 'border-[#FF5A6E]/60' : 'border-[#C45CFF]/55';
       el.className = `toast-enter pointer-events-auto bg-zinc-950/95 backdrop-blur border ${color} text-zinc-200 text-xs px-4 py-3 rounded-xl shadow-2xl max-w-xs`;
       el.textContent = msg;
       box.appendChild(el);
@@ -1118,7 +1188,7 @@
         users: [],
         platforms: [], products: [], transactions: [], tasks: [],
         discord: {
-          servers: [{ id: 'nexus', name: 'NexusMarketing', short: 'NM', channels: [
+          servers: [{ id: 'nexus', name: 'Hypno', short: 'HY', channels: [
             { id: 'geral', type: 'text', name: 'geral', topic: 'Conversa geral da equipe', fixed: true },
             { id: 'avisos', type: 'text', name: 'avisos', topic: 'Comunicados importantes' },
             ...FIXED_VOICE.map(c => ({ ...c }))
@@ -1186,10 +1256,10 @@
       financial: ['Novo lançamento', () => openTxModal()],
       team: ['Adicionar membro', () => openMemberModal()]
     };
-    const NAV_ON = "nav-btn w-full flex items-center gap-3 px-4 py-3 rounded-xl font-medium text-sm transition-all duration-200 bg-gradient-to-r from-blue-600/30 to-red-600/20 text-blue-300 border border-blue-500/40 shadow-lg shadow-blue-950/60";
-    const NAV_OFF = "nav-btn w-full flex items-center gap-3 px-4 py-3 rounded-xl font-medium text-sm transition-all duration-200 text-zinc-400 hover:bg-zinc-900 hover:text-red-400 border border-transparent";
-    const M_ON = "m-btn flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-medium whitespace-nowrap bg-blue-600 text-white";
-    const M_OFF = "m-btn flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-medium whitespace-nowrap text-zinc-400 bg-zinc-900";
+    const NAV_ON = "nav-btn w-full flex items-center gap-3 px-4 py-3 rounded-xl font-medium text-sm transition-all duration-200 bg-[#2A1440] text-[#D9A6FF] border border-[#C45CFF]/40";
+    const NAV_OFF = "nav-btn w-full flex items-center gap-3 px-4 py-3 rounded-xl font-medium text-sm transition-all duration-200 text-zinc-400 hover:bg-zinc-900 hover:text-[#D9A6FF] border border-transparent";
+    const M_ON = "m-btn flex items-center gap-1.5 px-3 py-2 rounded-full text-xs font-medium whitespace-nowrap bg-[#2A1440] text-[#D9A6FF] border border-[#C45CFF]/40";
+    const M_OFF = "m-btn flex items-center gap-1.5 px-3 py-2 rounded-full text-xs font-medium whitespace-nowrap text-zinc-400 bg-zinc-900 border border-transparent";
 
     function switchTab(tabId) {
       if (!me) return;
@@ -1296,7 +1366,7 @@
       document.getElementById('ov-sales').textContent = mt.qty;
       document.getElementById('ov-sales-sub').textContent = `${mt.sales} pedido(s) · ticket médio ${mt.ticket ? brl(mt.ticket) : '—'}`;
       document.getElementById('ov-month').textContent = brl(mm.gross);
-      document.getElementById('ov-month-sub').innerHTML = `Lucro líquido: <span class="text-red-400 font-semibold">${brl(mm.net)}</span>`;
+      document.getElementById('ov-month-sub').innerHTML = `Lucro líquido: <span class="text-[#D9A6FF] font-semibold">${brl(mm.net)}</span>`;
 
       const pc = document.getElementById('platforms-container');
       pc.innerHTML = db.platforms.length ? db.platforms.map(p => {
@@ -1315,7 +1385,7 @@
           </div>
           <div class="space-y-2 border-t border-zinc-800/80 pt-3 text-xs">
             <div class="flex justify-between"><span class="text-zinc-400">Vendas hoje:</span><span class="font-semibold text-zinc-200">${brl(m.gross)} (${m.qty} un)</span></div>
-            <div class="flex justify-between"><span class="text-zinc-400">Lucro bruto hoje:</span><span class="font-semibold text-red-500">${brl(m.gross - m.cogs)}</span></div>
+            <div class="flex justify-between"><span class="text-zinc-400">Lucro bruto hoje:</span><span class="font-semibold text-white">${brl(m.gross - m.cogs)}</span></div>
           </div>
         </div>`;
       }).join('') : `<div class="md:col-span-2 text-center py-10 border border-dashed border-zinc-800 rounded-xl">
@@ -1365,7 +1435,7 @@
       document.getElementById('fin-ticket').textContent = m.ticket ? brl(m.ticket) : '—';
       document.getElementById('fin-ticket-sub').textContent = 'Faturamento ÷ vendas';
 
-      const rows = [['Faturamento bruto', m.gross, 'text-white'], ['Custo dos produtos', -m.cogs, 'text-zinc-300'], ['Despesas', -m.exp, 'text-zinc-300'], ['Anúncios', -m.ads, 'text-zinc-300'], ['Lucro líquido', m.net, 'text-red-400 font-bold']];
+      const rows = [['Faturamento bruto', m.gross, 'text-white'], ['Custo dos produtos', -m.cogs, 'text-zinc-300'], ['Despesas', -m.exp, 'text-zinc-300'], ['Anúncios', -m.ads, 'text-zinc-300'], ['Lucro líquido', m.net, 'text-[#D9A6FF] font-bold']];
       document.getElementById('fin-breakdown').innerHTML = rows.map(([l, v, c], i) => `
         <div class="flex justify-between ${i === 4 ? 'pt-3 border-t border-zinc-800' : ''}"><span class="text-zinc-400">${l}</span><span class="${c}">${v < 0 ? '− ' + brl(-v) : brl(v)}</span></div>`).join('');
 
@@ -1375,7 +1445,7 @@
         <div class="space-y-1">
           <div class="flex justify-between text-xs text-zinc-300 font-medium"><span>${x.label}</span><span>Bruto: ${brl(x.gross)} | Líquido: <span class="${x.net < 0 ? 'text-red-400' : ''}">${brl(x.net)}</span></span></div>
           <div class="h-2.5 bg-black rounded-full overflow-hidden border border-zinc-900"><div style="width:${(x.gross / max * 100).toFixed(1)}%" class="h-full bg-blue-600 rounded-full"></div></div>
-          <div class="h-2.5 bg-black rounded-full overflow-hidden border border-zinc-900"><div style="width:${(Math.max(0, x.net) / max * 100).toFixed(1)}%" class="h-full bg-red-600 rounded-full"></div></div>
+          <div class="h-2.5 bg-black rounded-full overflow-hidden border border-zinc-900"><div style="width:${(Math.max(0, x.net) / max * 100).toFixed(1)}%" class="h-full bg-zinc-500 rounded-full"></div></div>
         </div>`).join('');
 
       const type = document.getElementById('fin-type').value;
@@ -1463,7 +1533,7 @@
     let invType = 'all';
     function switchInventoryType(t) { invType = t; renderInventory(); }
     function renderInventory() {
-      const on = 'px-4 py-2 rounded-lg text-sm font-semibold transition bg-gradient-to-r from-blue-600 to-red-600 text-white shadow-md';
+      const on = 'px-4 py-2 rounded-lg text-sm font-semibold transition hyp-accentfill text-white shadow-md';
       const off = 'px-4 py-2 rounded-lg text-sm font-semibold transition text-zinc-400 hover:text-zinc-200';
       ['all', 'digital', 'physical'].forEach(k => document.getElementById('inv-btn-' + k).className = invType === k ? on : off);
       const P = db.products;
@@ -1764,7 +1834,7 @@
     function renderDcServers() {
       document.getElementById('dc-servers').innerHTML = db.discord.servers.map(s => {
         const on = s.id === dcUI.server;
-        return `<button onclick="dcSwitchServer('${s.id}')" title="${esc(s.name)}" class="relative w-12 h-12 flex items-center justify-center font-bold text-sm transition-all shrink-0 ${on ? 'rounded-2xl bg-gradient-to-br from-blue-600 to-red-600 text-white shadow-lg shadow-blue-900/40' : 'rounded-3xl hover:rounded-2xl bg-zinc-900 text-zinc-300 hover:bg-blue-600 hover:text-white'}">
+        return `<button onclick="dcSwitchServer('${s.id}')" title="${esc(s.name)}" class="relative w-12 h-12 flex items-center justify-center font-bold text-sm transition-all shrink-0 ${on ? 'rounded-2xl hyp-accentfill text-white shadow-lg shadow-blue-900/40' : 'rounded-3xl hover:rounded-2xl bg-zinc-900 text-zinc-300 hover:bg-blue-600 hover:text-white'}">
           ${on ? '<span class="absolute -left-[10px] w-1 h-8 bg-white rounded-r"></span>' : ''}${esc(s.short || initialsOf(s.name))}</button>`;
       }).join('') + `<div class="w-8 h-px bg-zinc-800 my-1"></div>
         <button onclick="openServerModal()" title="Criar servidor" class="w-12 h-12 rounded-3xl hover:rounded-2xl bg-zinc-900 text-emerald-400 hover:bg-emerald-600 hover:text-white flex items-center justify-center transition-all"><i data-lucide="plus" class="w-5 h-5"></i></button>`;
@@ -3092,7 +3162,7 @@
       const chips = (key, label, cols = 2) => `
         <div><p class="text-xs font-semibold text-zinc-300 mb-2">${label}</p>
           <div class="grid grid-cols-${cols} gap-1.5">
-            ${AV_OPTIONS[key].map(([v, t]) => `<button onclick="setAvatar('${key}','${v}')" class="text-xs px-2.5 py-2 rounded-lg border transition ${avatarCfg[key] === v ? 'bg-gradient-to-r from-blue-600/30 to-red-600/20 border-blue-500/50 text-white' : 'bg-black border-zinc-800 text-zinc-400 hover:text-zinc-200'}">${t}</button>`).join('')}
+            ${AV_OPTIONS[key].map(([v, t]) => `<button onclick="setAvatar('${key}','${v}')" class="text-xs px-2.5 py-2 rounded-lg border transition ${avatarCfg[key] === v ? 'hyp-accentfill border-blue-500/50 text-white' : 'bg-black border-zinc-800 text-zinc-400 hover:text-zinc-200'}">${t}</button>`).join('')}
           </div></div>`;
       const tabs = [['corpo', 'Corpo'], ['roupas', 'Roupas'], ['acessorios', 'Acessórios']];
       let body = '';
@@ -3108,7 +3178,7 @@
         ${chips('top', 'Parte de cima')}
         ${sw('topColor', avatarCfg.top === 'jaqueta' ? 'Cor da jaqueta' : avatarCfg.top === 'moletom' ? 'Cor do moletom' : 'Cor da peça')}
         ${avatarCfg.top === 'jaqueta' ? sw('top2Color', 'Camiseta por baixo') : avatarCfg.top === 'camisa' ? sw('top2Color', 'Cor da gola') : ''}
-        ${['camiseta', 'moletom', 'regata'].includes(avatarCfg.top) ? `<label class="flex items-center gap-2 text-xs text-zinc-300 cursor-pointer"><input type="checkbox" ${avatarCfg.logo ? 'checked' : ''} onchange="setAvatar('logo', this.checked)" class="accent-blue-600"> Logo Nexus no peito</label>` : ''}
+        ${['camiseta', 'moletom', 'regata'].includes(avatarCfg.top) ? `<label class="flex items-center gap-2 text-xs text-zinc-300 cursor-pointer"><input type="checkbox" ${avatarCfg.logo ? 'checked' : ''} onchange="setAvatar('logo', this.checked)" class="accent-blue-600"> Logo Hypno no peito</label>` : ''}
         ${chips('bottom', 'Parte de baixo', 3)}
         ${sw('bottomColor', 'Cor da calça / shorts')}
         ${chips('shoes', 'Calçado', 3)}
@@ -3180,7 +3250,7 @@
       const localNote = AUTH.mode === 'local' ? `<p class="mt-6 text-[11px] text-amber-300/80 text-center leading-relaxed">Modo de teste: as contas ficam só neste navegador.<br>Para a equipe entrar de outros computadores, conecte o servidor (veja o guia de configuração).</p>` : '';
       return `<div class="w-full max-w-md">
         <div class="flex flex-col items-center text-center mb-7">
-          <div class="w-14 h-14 rounded-2xl bg-gradient-to-br from-blue-600 to-red-600 flex items-center justify-center text-white font-extrabold text-xl shadow-lg shadow-blue-900/40 mb-4">N</div>
+          <div class="hyp-accentfill !rounded-2xl w-14 h-14 flex items-center justify-center font-extrabold text-2xl mb-4 hyp-wordmark">H</div>
           <h1 class="text-2xl font-extrabold text-white">${title}</h1>
           ${sub ? `<p class="text-sm text-zinc-400 mt-1.5 max-w-sm">${sub}</p>` : ''}
         </div>${body}${localNote}</div>`;
@@ -3190,9 +3260,9 @@
       const err = info && info.error ? `<p class="text-xs text-red-400 bg-red-500/10 border border-red-500/20 rounded-lg px-3 py-2">${esc(info.error)}</p>` : '';
       const btn = (label) => `<button ${authBusy ? 'disabled' : ''} class="btn-primary w-full !py-3 disabled:opacity-60">${authBusy ? 'Aguarde...' : label}</button>`;
       let html = '';
-      if (view === 'loading') html = authShell('Nexus', 'Conectando...', '<div class="flex justify-center"><span class="w-6 h-6 border-2 border-zinc-700 border-t-blue-500 rounded-full animate-spin"></span></div>');
+      if (view === 'loading') html = authShell('Hypno', 'Conectando...', '<div class="flex justify-center"><span class="w-6 h-6 border-2 border-zinc-700 border-t-blue-500 rounded-full animate-spin"></span></div>');
       else if (view === 'error') html = authShell('Não foi possível conectar', esc(info && info.error || ''), `<button onclick="location.reload()" class="btn-primary w-full !py-3">Tentar de novo</button>`);
-      else if (view === 'login') html = authShell('Entrar no Nexus', 'Use seu e-mail e senha.', `
+      else if (view === 'login') html = authShell('Entrar na Hypno', 'Use seu e-mail e senha.', `
         <form onsubmit="event.preventDefault(); authLogin(this)" class="space-y-3 p-5 rounded-2xl bg-zinc-950 border border-zinc-800">
           <div><label class="text-xs font-semibold text-zinc-300">E-mail</label><input name="email" type="email" required autocomplete="email" value="${esc(info && info.email || '')}" class="inp mt-1"></div>
           <div><label class="text-xs font-semibold text-zinc-300">Senha</label><div class="relative mt-1"><input name="password" type="password" required autocomplete="current-password" class="inp !pr-10">${eyeBtn}</div></div>
@@ -3218,7 +3288,7 @@
         html = authShell(map[0], map[1], `
           <div class="p-5 rounded-2xl bg-zinc-950 border border-zinc-800 space-y-3">
             <div class="flex items-center gap-3 p-3 rounded-xl bg-black border border-zinc-800">
-              <span class="w-10 h-10 shrink-0 rounded-full bg-gradient-to-r from-blue-600 to-red-600 flex items-center justify-center font-bold text-white text-sm">${esc(initialsOf(p.name))}</span>
+              <span class="w-10 h-10 shrink-0 rounded-full hyp-accentfill flex items-center justify-center font-bold text-white text-sm">${esc(initialsOf(p.name))}</span>
               <span class="flex-1 overflow-hidden"><span class="block text-sm font-semibold text-white truncate">${esc(p.name || '')}</span><span class="block text-[11px] text-zinc-500 truncate">${esc(p.email || '')}</span></span>
               <i data-lucide="${map[2]}" class="w-5 h-5 ${map[3]} ${view === 'pending' ? 'animate-pulse' : ''}"></i>
             </div>
@@ -6084,7 +6154,7 @@
     function fpsMenu(kind, info) {
       const el = document.getElementById('fps-menu');
       fps.menuState = kind;
-      const btn = (on, onclick, label) => `<button onclick="${onclick}" class="px-4 py-2 rounded-lg text-sm font-semibold border transition ${on ? 'bg-gradient-to-r from-blue-600/40 to-red-600/30 border-blue-500/60 text-white' : 'bg-black border-zinc-800 text-zinc-400 hover:text-zinc-200'}">${label}</button>`;
+      const btn = (on, onclick, label) => `<button onclick="${onclick}" class="px-4 py-2 rounded-lg text-sm font-semibold border transition ${on ? 'bg-[#2A1440] border-[#C45CFF]/55 text-white' : 'bg-black border-zinc-800 text-zinc-400 hover:text-zinc-200'}">${label}</button>`;
       const diffSel = `<select onchange="office3D.fpsSetDiff(this.value)" class="inp !w-auto !py-2">${Object.entries(BOT_DIFF).map(([k, v]) => `<option value="${k}" ${k === fps.diff ? 'selected' : ''}>Bot ${v.label}</option>`).join('')}</select>`;
       const primary = `<div class="flex flex-col items-center gap-2"><p class="text-[11px] uppercase tracking-wider text-zinc-500">Arma principal (tecla 1)</p>
         <div class="flex gap-2">${btn(fps.primary === 'ak', "office3D.fpsSetPrimary('ak')", '🔫 AK-47')}${btn(fps.primary === 'awp', "office3D.fpsSetPrimary('awp')", '🎯 AWP')}</div>
