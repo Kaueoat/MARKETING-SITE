@@ -395,6 +395,18 @@
           <div class="absolute bottom-5 left-6 pointer-events-none flex items-end gap-2"><span class="text-xs text-zinc-400 mb-1.5">❤</span><span id="fps-hp" class="text-4xl font-extrabold text-white">100</span></div>
           <div class="absolute bottom-5 right-6 pointer-events-none text-right"><div id="fps-ammo"></div><div id="fps-weapons" class="flex gap-1 justify-end text-[11px] mt-1"></div></div>
           <div id="fps-free" class="hidden absolute bottom-24 left-1/2 -translate-x-1/2 text-[11px] text-zinc-300 bg-black/60 px-3 py-1.5 rounded-lg pointer-events-none">Modo mouse livre: o navegador não liberou a captura do mouse. Mire movendo o mouse sobre a tela · Esc pausa</div>
+          <div id="fps-buyhint" class="hidden absolute bottom-6 left-1/2 -translate-x-1/2 text-xs text-zinc-300 bg-black/60 px-3 py-1.5 rounded-lg pointer-events-none"></div>
+          <div id="fps-buy" class="hidden absolute inset-0 flex items-center justify-center pointer-events-none">
+            <div class="pointer-events-auto bg-zinc-950/90 border border-zinc-700 rounded-2xl p-5 w-[min(92vw,520px)] text-center shadow-2xl">
+              <p class="text-[11px] uppercase tracking-widest text-zinc-400 mb-1">Menu de compra</p>
+              <h3 class="text-xl font-extrabold text-white mb-4">Escolha a arma principal</h3>
+              <div class="grid grid-cols-2 gap-3">
+                <button data-buy="ak" onclick="office3D.fpsBuy('ak')" class="ring-blue-500 rounded-xl bg-black border border-zinc-800 hover:border-blue-500 p-4 text-left"><span class="text-[11px] text-zinc-500">tecla 1</span><p class="text-lg font-bold text-white">AK-47</p><p class="text-[11px] text-zinc-400">Automática, boa em qualquer distância</p></button>
+                <button data-buy="awp" onclick="office3D.fpsBuy('awp')" class="ring-blue-500 rounded-xl bg-black border border-zinc-800 hover:border-blue-500 p-4 text-left"><span class="text-[11px] text-zinc-500">tecla 2</span><p class="text-lg font-bold text-white">AWP</p><p class="text-[11px] text-zinc-400">Sniper: um tiro no corpo derruba</p></button>
+              </div>
+              <p class="text-[11px] text-zinc-500 mt-3">B ou Esc para fechar · só nos primeiros 15s do round</p>
+            </div>
+          </div>
           <div id="fps-menu" class="absolute inset-0 bg-black/70 flex items-center justify-center"></div>
         </div>
 
@@ -562,10 +574,11 @@
             </table>
           </div>
           <div id="team-invites"></div>
-          <div class="mt-5 grid grid-cols-1 md:grid-cols-3 gap-3 text-xs">
+          <div class="mt-5 grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-3 text-xs">
             <div class="p-3 rounded-xl bg-black border border-zinc-800"><b class="text-zinc-200">Administrador</b><p class="text-zinc-500 mt-1">Acesso total, inclusive gerenciar a equipe.</p></div>
             <div class="p-3 rounded-xl bg-black border border-zinc-800"><b class="text-zinc-200">Financeiro + Projetos</b><p class="text-zinc-500 mt-1">Tudo, exceto Equipe & Acessos.</p></div>
             <div class="p-3 rounded-xl bg-black border border-zinc-800"><b class="text-zinc-200">Projetos</b><p class="text-zinc-500 mt-1">Projetos, Workspace, Estoque e Escritório 3D. Sem acesso ao Financeiro.</p></div>
+            <div class="p-3 rounded-xl bg-black border border-zinc-800"><b class="text-zinc-200">Convidado</b><p class="text-zinc-500 mt-1">Só o Workspace (Discord) e o Escritório 3D. Não vê Projetos, Estoque nem Financeiro.</p></div>
           </div>
         </div>
 
@@ -692,7 +705,7 @@
       <form onsubmit="saveMember(event)" class="space-y-4">
         <input type="hidden" id="member-name">
         <div><label class="lbl">E-mail</label><input type="email" id="member-email" required class="inp"></div>
-        <div><label class="lbl">Permissão</label><select id="member-role" class="inp"><option>Projetos</option><option>Financeiro + Projetos</option><option>Administrador</option></select></div>
+        <div><label class="lbl">Permissão</label><select id="member-role" class="inp"><option>Projetos</option><option>Convidado</option><option>Financeiro + Projetos</option><option>Administrador</option></select></div>
         <div class="flex justify-end gap-3 pt-2">
           <button type="button" onclick="closeModal('member-modal')" class="px-4 py-2 text-xs font-semibold text-zinc-400 hover:text-zinc-200">Cancelar</button>
           <button type="submit" class="btn-primary">Liberar</button>
@@ -1090,7 +1103,8 @@
     const ROLES = {
       'Administrador': ['overview', 'kanban', 'workspace', 'office3d', 'inventory', 'financial', 'team'],
       'Financeiro + Projetos': ['overview', 'kanban', 'workspace', 'office3d', 'inventory', 'financial'],
-      'Projetos': ['kanban', 'workspace', 'office3d', 'inventory']
+      'Projetos': ['kanban', 'workspace', 'office3d', 'inventory'],
+      'Convidado': ['workspace', 'office3d']
     };
     const FIXED_VOICE = [
       { id: 'reuniao', type: 'voice', name: 'Sala de Reunião 1', emoji: '🔊', fixed: true },
@@ -1256,7 +1270,7 @@
         today: fin ? calc(txIn(t, t)) : null,
         month: fin ? calc(txIn(mf, mt)) : null,
         monthly: fin ? last6Months() : [],
-        platforms: db.platforms, products: db.products, tasks: db.tasks, users: db.users,
+        platforms: canSee('financial') || canSee('overview') ? db.platforms : [], products: canSee('inventory') ? db.products : [], tasks: canSee('kanban') ? db.tasks : [], users: db.users,
         channels: (db.discord.servers.find(s => s.id === 'nexus') || db.discord.servers[0]).channels,
         voice: dcUI.voice,
         messages: (db.discord.messages['nexus/geral'] || []).slice(-5).map(m => ({ ...m, user: userName(m.email, m.user) })),
@@ -1832,7 +1846,7 @@
         main.innerHTML = `<div class="flex-1 flex flex-col min-w-0">${chatPanelHtml(c, false)}</div>`;
       } else {
         const here = dcUI.voice && dcUI.voice.server === dcUI.server && dcUI.voice.channel === c.id;
-        const stage = here ? `
+        const stage = here && dcUI.view === 'board' ? bsPanelHtml() : here ? `
           <div class="grid ${dcUI.screen || liveRemoteScreen() ? 'grid-cols-1 lg:grid-cols-[2fr_1fr]' : (liveInVoice(myVoiceKey()).length ? 'grid-cols-1 md:grid-cols-2' : 'grid-cols-1')} gap-3 flex-1 min-h-0 auto-rows-fr">
             ${liveScreenTileHtml()}
             ${dcUI.screen ? `
@@ -1865,7 +1879,7 @@
             ${btn(false, 'dcLeaveVoice()', 'phone-off', 'Sair', true)}
           </div>` : '';
         main.innerHTML = `
-          <div class="flex-1 flex flex-col p-4 min-w-0">${stage}${dock}</div>
+          <div class="flex-1 flex flex-col p-4 min-w-0">${here ? bsTabsHtml() : ''}${stage}${dock}</div>
           <div class="w-72 border-l border-zinc-800 hidden lg:flex flex-col min-h-0">
             <div class="p-3 border-b border-zinc-800 shrink-0">
               <div class="flex items-center gap-1.5 mb-2"><i data-lucide="notebook-pen" class="w-4 h-4 text-blue-400"></i><h4 class="font-bold text-white text-xs uppercase tracking-wider">Ata da Reunião</h4></div>
@@ -1876,6 +1890,7 @@
             ${chatPanelHtml(c, true)}
           </div>`;
         renderAta(); attachStreams();
+        if (here && dcUI.view === 'board') bsMount();
       }
       renderDcMessages(); refreshIcons();
     }
@@ -2152,6 +2167,7 @@
       LIVE.room = AUTH.room('office', LIVE.key, liveMyState());
       LIVE.room.onState(liveOnState);
       LIVE.room.on('sig', m => liveOnSignal(m));
+      LIVE.room.on('bs', m => bsOnMsg(m));
       LIVE.room.on('pos', d => { const p = d && LIVE.peers.get(d.k); if (p && !(p.dc && p.dc.readyState === 'open')) liveOnPos(p, d); });
       setInterval(liveLevels, 150);
       window.addEventListener('beforeunload', () => { try { LIVE.room.leave(); } catch (e) {} });
@@ -2161,7 +2177,7 @@
     function liveSync() {
       if (!LIVE.room || !me) return;
       clearTimeout(liveSyncT);
-      liveSyncT = setTimeout(() => { LIVE.room.update(liveMyState()); liveRoute(); liveRender(); lkSync(); }, 40);
+      liveSyncT = setTimeout(() => { bsSyncCall(); LIVE.room.update(liveMyState()); liveRoute(); liveRender(); lkSync(); }, 40);
     }
     const livePeerList = () => [...LIVE.peers.values()].filter(p => p.state && p.state.uid);
     // pessoas únicas (a mesma pessoa pode estar com 2 abas abertas)
@@ -2362,7 +2378,7 @@
         if (dcVisible()) {
           renderDcChannels(); renderDcMembers();
           const c = dcCurrent();
-          if (c && c.type === 'voice' && !document.activeElement.closest('#dc-main form')) renderDcMain();
+          if (c && c.type === 'voice' && dcUI.view !== 'board' && !document.activeElement.closest('#dc-main form')) renderDcMain();
           refreshIcons();
         }
         if (window.office3D && office3D.refreshVoice) office3D.refreshVoice();
@@ -2580,6 +2596,296 @@
     }
     const lkHas = uid => !!(LK.room && LK.room.remoteParticipants && [...LK.room.remoteParticipants.values()].some(p => p.identity === uid));
     document.addEventListener('click', () => { if (LK.room && !LK.room.canPlaybackAudio) LK.room.startAudio().catch(() => {}); });
+
+    const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+    dcUI.view = 'call';
+    // =====================================================================
+    // BRAINSTORM DA CALL: quadro com notas, textos e imagens, ao vivo para
+    // quem está na mesma sala de voz. Não fica salvo: some quando todos saem.
+    // =====================================================================
+    const BS = { call: null, items: new Map(), parts: {}, pendingSrc: {}, reqId: null, answered: new Set(), z: 1, sendT: {}, drag: null };
+    const BS_COLORS = ['#fde68a', '#bbf7d0', '#bfdbfe', '#fbcfe8', '#fed7aa', '#e9d5ff'];
+    const BS_W = 2400, BS_H = 1500, BS_CHUNK = 48000;
+    function bsSend(op, data) { if (LIVE.room && BS.call) LIVE.room.send('bs', { call: BS.call, from: LIVE.key, op, ...data }); }
+    const bsMeta = it => { const { src, ...m } = it; return m; };
+    // entrou/saiu/trocou de call
+    function bsSyncCall() {
+      const k = myVoiceKey();
+      if (k === BS.call) return;
+      BS.items.clear(); BS.parts = {}; BS.pendingSrc = {}; BS.call = k; BS.answered.clear();
+      if (!k) { if (dcUI.view === 'board') dcUI.view = 'call'; return; }
+      BS.reqId = Math.random().toString(36).slice(2);
+      setTimeout(() => { if (BS.call === k) bsSend('req', { id: BS.reqId }); }, 600);
+    }
+    function bsOnMsg(m) {
+      if (!m || !BS.call || m.call !== BS.call || m.from === LIVE.key) return;
+      if (m.to && m.to !== LIVE.key) { if (m.op === 'state') BS.answered.add(m.reqId); return; }
+      switch (m.op) {
+        case 'req': {
+          if (!BS.items.size) return;
+          const rid = m.id;
+          setTimeout(() => {
+            if (BS.answered.has(rid)) return;
+            BS.answered.add(rid);
+            bsSend('state', { to: m.from, reqId: rid, items: [...BS.items.values()].map(bsMeta) });
+            for (const it of BS.items.values()) if (it.src) bsSendImage(it, m.from);
+          }, 100 + Math.random() * 500);
+          break;
+        }
+        case 'state':
+          BS.answered.add(m.reqId);
+          (m.items || []).forEach(it => bsApply(it));
+          break;
+        case 'up': bsApply(m.item); break;
+        case 'del': bsRemove(m.id, true); break;
+        case 'clear': BS.items.clear(); bsMount(); break;
+        case 'img': bsOnChunk(m); break;
+      }
+    }
+    function bsApply(it) {
+      if (!it || !it.id) return;
+      const cur = BS.items.get(it.id);
+      if (cur && (cur.ts || 0) > (it.ts || 0)) return;
+      const next = { ...(cur || {}), ...it };
+      if (!next.src && BS.pendingSrc[it.id]) { next.src = BS.pendingSrc[it.id]; delete BS.pendingSrc[it.id]; }
+      BS.items.set(it.id, next);
+      BS.z = Math.max(BS.z, (next.z || 0) + 1);
+      bsRenderItem(next);
+      bsCount();
+    }
+    function bsRemove(id, remote) {
+      BS.items.delete(id);
+      const el = document.querySelector(`[data-bs="${id}"]`); if (el) el.remove();
+      if (!remote) bsSend('del', { id });
+      bsCount();
+    }
+    // imagens vão em pedaços (o canal ao vivo tem limite de tamanho por mensagem)
+    // envio em fila, sem estourar o limite de mensagens por segundo do servidor
+    const bsQueue = []; let bsQueueT = null;
+    function bsSendImage(it, to) {
+      const n = Math.ceil(it.src.length / BS_CHUNK), call = BS.call;
+      for (let i = 0; i < n; i++) bsQueue.push({ call, data: { to, id: it.id, i, n, part: it.src.slice(i * BS_CHUNK, (i + 1) * BS_CHUNK) } });
+      if (!bsQueueT) bsQueueT = setInterval(() => {
+        const q = bsQueue.shift();
+        if (!q) { clearInterval(bsQueueT); bsQueueT = null; return; }
+        if (q.call === BS.call) bsSend('img', q.data);
+      }, 70);
+    }
+    function bsOnChunk(m) {
+      const cur = BS.items.get(m.id); if (cur && cur.src) return;
+      const p = BS.parts[m.id] = BS.parts[m.id] || { n: m.n, got: {} };
+      p.got[m.i] = m.part;
+      if (Object.keys(p.got).length < p.n) return;
+      const src = Array.from({ length: p.n }, (_, i) => p.got[i]).join('');
+      delete BS.parts[m.id];
+      if (cur) { cur.src = src; bsRenderItem(cur); } else BS.pendingSrc[m.id] = src;
+    }
+    // ---------- ações ----------
+    function bsNow() { return Date.now() + Math.random(); }
+    function bsCenter(w, h) {
+      const vp = document.getElementById('bs-viewport');
+      const x = vp ? vp.scrollLeft + vp.clientWidth / 2 - w / 2 : 200, y = vp ? vp.scrollTop + vp.clientHeight / 2 - h / 2 : 150;
+      return { x: Math.max(10, Math.round(x + (Math.random() - 0.5) * 80)), y: Math.max(10, Math.round(y + (Math.random() - 0.5) * 60)) };
+    }
+    function bsAdd(type) {
+      if (!BS.call) return;
+      const w = type === 'note' ? 220 : 320, h = type === 'note' ? 180 : 70, c = bsCenter(w, h);
+      const it = { id: 'b' + uid(), type, x: c.x, y: c.y, w, h, text: '', color: BS_COLORS[Math.floor(Math.random() * BS_COLORS.length)], by: me.name, ts: bsNow(), z: BS.z++ };
+      BS.items.set(it.id, it); bsRenderItem(it, true); bsSend('up', { item: it }); bsCount();
+    }
+    function bsCompress(file) {
+      return new Promise((res, rej) => {
+        const img = new Image(), url = URL.createObjectURL(file);
+        img.onload = () => {
+          URL.revokeObjectURL(url);
+          let max = 1600, q = 0.85, out = '';
+          for (let tries = 0; tries < 4; tries++) {
+            const k = Math.min(1, max / Math.max(img.width, img.height));
+            const cv = document.createElement('canvas'); cv.width = Math.round(img.width * k); cv.height = Math.round(img.height * k);
+            const g = cv.getContext('2d'); g.fillStyle = '#fff'; g.fillRect(0, 0, cv.width, cv.height); g.drawImage(img, 0, 0, cv.width, cv.height);
+            out = cv.toDataURL('image/jpeg', q);
+            if (out.length < 900000) break;
+            max *= 0.75; q -= 0.1;
+          }
+          res({ src: out, w: img.width, h: img.height });
+        };
+        img.onerror = () => { URL.revokeObjectURL(url); rej(new Error('Imagem inválida')); };
+        img.src = url;
+      });
+    }
+    async function bsAddImages(files) {
+      if (!BS.call) return;
+      for (const f of [...files].filter(f => /^image\//.test(f.type)).slice(0, 8)) {
+        try {
+          const { src, w, h } = await bsCompress(f);
+          const k = Math.min(1, 420 / Math.max(w, h)), W = Math.round(w * k), H = Math.round(h * k), c = bsCenter(W, H);
+          const it = { id: 'b' + uid(), type: 'image', x: c.x, y: c.y, w: W, h: H, name: (f.name || 'imagem').replace(/\.[^.]+$/, ''), by: me.name, ts: bsNow(), z: BS.z++, src };
+          BS.items.set(it.id, it); bsRenderItem(it); bsSend('up', { item: bsMeta(it) }); bsSendImage(it); bsCount();
+        } catch (e) { showToast('Não consegui abrir essa imagem.', 'error'); }
+      }
+    }
+    function bsClear() {
+      if (!BS.items.size || !confirm('Limpar o quadro para todos da chamada?')) return;
+      BS.items.clear(); bsSend('clear', {}); bsMount();
+    }
+    function bsDownloadImage(id) {
+      const it = BS.items.get(id); if (!it || !it.src) return;
+      const a = document.createElement('a'); a.href = it.src; a.download = (it.name || 'brainstorm') + '.jpg'; document.body.appendChild(a); a.click(); a.remove();
+    }
+    // ---------- tela ----------
+    function bsTabsHtml() {
+      const n = BS.items.size;
+      const t = (v, icon, label) => `<button onclick="dcSetView('${v}')" class="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold border ${dcUI.view === v ? 'bg-zinc-800 border-zinc-700 text-white' : 'border-transparent text-zinc-400 hover:text-zinc-200'}"><i data-lucide="${icon}" class="w-3.5 h-3.5"></i>${label}</button>`;
+      return `<div class="flex items-center gap-1 mb-3 shrink-0">${t('call', 'users', 'Chamada')}${t('board', 'lightbulb', `Brainstorm <span id="bs-count" class="text-[10px] text-zinc-500">${n ? '(' + n + ')' : ''}</span>`)}</div>`;
+    }
+    function bsPanelHtml() {
+      const b = (on, icon, label, extra = '') => `<button ${on} ${extra} class="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-zinc-900 border border-zinc-800 text-zinc-200 hover:bg-zinc-800"><i data-lucide="${icon}" class="w-3.5 h-3.5"></i>${label}</button>`;
+      return `<div class="flex-1 min-h-0 flex flex-col">
+        <div class="flex flex-wrap items-center gap-2 mb-2">
+          ${b('onclick="bsAdd(\'note\')"', 'sticky-note', 'Nota')}
+          ${b('onclick="bsAdd(\'text\')"', 'type', 'Texto')}
+          ${b('onclick="document.getElementById(\'bs-file\').click()"', 'image-plus', 'Imagem')}
+          <input id="bs-file" type="file" accept="image/*" multiple class="hidden" onchange="bsAddImages(this.files); this.value=''">
+          <span class="flex-1"></span>
+          ${b('onclick="bsExport()"', 'download', 'Baixar quadro')}
+          ${b('onclick="bsClear()"', 'eraser', 'Limpar')}
+        </div>
+        <div id="bs-viewport" class="relative flex-1 min-h-[320px] overflow-auto rounded-xl border border-zinc-800 bg-[#0b0b0f]">
+          <div id="bs-canvas" class="relative" style="width:${BS_W}px;height:${BS_H}px;background-image:radial-gradient(#27272a 1px, transparent 1px);background-size:24px 24px"></div>
+          <div id="bs-empty" class="hidden absolute inset-0 flex items-center justify-center pointer-events-none"><div class="text-center text-zinc-500 text-sm px-6"><p class="text-zinc-300 font-semibold mb-1">Quadro vazio</p><p>Adicione notas, textos ou imagens. Também dá para colar (Ctrl+V) ou arrastar imagens para cá.</p><p class="text-[11px] mt-2">Todo mundo da chamada vê ao vivo. O quadro some quando todos saírem da call.</p></div></div>
+        </div>
+      </div>`;
+    }
+    function bsMount() {
+      const cv = document.getElementById('bs-canvas'); if (!cv) { bsCount(); return; }
+      cv.innerHTML = '';
+      [...BS.items.values()].sort((a, b) => (a.z || 0) - (b.z || 0)).forEach(it => bsRenderItem(it));
+      const vp = document.getElementById('bs-viewport');
+      if (vp && !vp.dataset.wired) {
+        vp.dataset.wired = 1;
+        vp.addEventListener('dragover', e => { e.preventDefault(); });
+        vp.addEventListener('drop', e => { e.preventDefault(); if (e.dataTransfer.files.length) bsAddImages(e.dataTransfer.files); });
+      }
+      bsCount(); refreshIcons();
+    }
+    function bsCount() {
+      const c = document.getElementById('bs-count'); if (c) c.textContent = BS.items.size ? `(${BS.items.size})` : '';
+      const e = document.getElementById('bs-empty'); if (e) e.classList.toggle('hidden', BS.items.size > 0);
+    }
+    function bsRenderItem(it, focus) {
+      const cv = document.getElementById('bs-canvas'); if (!cv) return;
+      let el = cv.querySelector(`[data-bs="${it.id}"]`);
+      const fresh = !el;
+      if (fresh) {
+        el = document.createElement('div'); el.dataset.bs = it.id;
+        el.className = 'absolute group rounded-xl shadow-lg';
+        const bar = `<div data-drag class="flex items-center justify-between gap-2 px-2 h-6 cursor-move text-[10px] ${it.type === 'note' ? 'text-black/50' : 'text-zinc-500'}"><span class="truncate" data-by></span>
+          <span class="flex items-center gap-1 opacity-0 group-hover:opacity-100">${it.type === 'image' ? `<button title="Baixar imagem" data-dl class="p-0.5 hover:text-blue-500"><i data-lucide="download" class="w-3.5 h-3.5"></i></button>` : ''}<button title="Apagar" data-rm class="p-0.5 hover:text-red-500"><i data-lucide="x" class="w-3.5 h-3.5"></i></button></span></div>`;
+        if (it.type === 'image') el.innerHTML = bar + `<div class="px-1.5 pb-1.5" style="height:calc(100% - 24px)"><img draggable="false" class="w-full h-full object-contain rounded-lg bg-black/40"><div data-loading class="hidden w-full h-full flex items-center justify-center text-xs text-zinc-500">carregando imagem...</div></div>`;
+        else el.innerHTML = bar + `<textarea spellcheck="false" placeholder="${it.type === 'note' ? 'Escreva uma ideia...' : 'Texto'}" class="block w-full bg-transparent resize-none focus:outline-none px-3 pb-2 ${it.type === 'note' ? 'text-black text-sm placeholder-black/40' : 'text-white text-xl font-bold placeholder-zinc-600'}" style="height:calc(100% - 24px)"></textarea>`;
+        el.insertAdjacentHTML('beforeend', `<div data-rs class="absolute right-0 bottom-0 w-4 h-4 cursor-se-resize opacity-0 group-hover:opacity-100" style="background:linear-gradient(135deg,transparent 50%,${it.type === 'note' ? 'rgba(0,0,0,.35)' : '#52525b'} 50%);border-bottom-right-radius:10px"></div>`);
+        cv.appendChild(el);
+        bsWire(el, it.id);
+        if (window.lucide) refreshIcons();
+      }
+      el.style.left = it.x + 'px'; el.style.top = it.y + 'px'; el.style.width = it.w + 'px'; el.style.height = it.h + 'px'; el.style.zIndex = it.z || 1;
+      el.style.background = it.type === 'note' ? it.color : it.type === 'image' ? '#18181b' : 'transparent';
+      el.style.border = it.type === 'text' ? '1px dashed rgba(113,113,122,.35)' : it.type === 'image' ? '1px solid #27272a' : 'none';
+      el.querySelector('[data-by]').textContent = it.by || '';
+      const ta = el.querySelector('textarea');
+      if (ta && document.activeElement !== ta && ta.value !== (it.text || '')) ta.value = it.text || '';
+      const img = el.querySelector('img');
+      if (img) {
+        const loading = el.querySelector('[data-loading]');
+        if (it.src) { if (img.getAttribute('src') !== it.src) img.src = it.src; img.classList.remove('hidden'); loading.classList.add('hidden'); }
+        else { img.classList.add('hidden'); loading.classList.remove('hidden'); }
+      }
+      if (focus && ta) setTimeout(() => ta.focus(), 30);
+    }
+    function bsPush(id, immediate) {
+      const it = BS.items.get(id); if (!it) return;
+      it.ts = bsNow();
+      clearTimeout(BS.sendT[id]);
+      const go = () => bsSend('up', { item: bsMeta(it) });
+      if (immediate) go(); else BS.sendT[id] = setTimeout(go, 70);
+    }
+    function bsWire(el, id) {
+      el.querySelector('[data-rm]').onclick = e => { e.stopPropagation(); bsRemove(id); };
+      const dl = el.querySelector('[data-dl]'); if (dl) dl.onclick = e => { e.stopPropagation(); bsDownloadImage(id); };
+      const ta = el.querySelector('textarea');
+      if (ta) ta.addEventListener('input', () => { const it = BS.items.get(id); if (!it) return; it.text = ta.value.slice(0, 2000); bsPush(id); });
+      const start = (e, mode) => {
+        if (e.button !== 0) return;
+        const it = BS.items.get(id); if (!it) return;
+        e.preventDefault();
+        it.z = BS.z++; el.style.zIndex = it.z;
+        BS.drag = { id, mode, sx: e.clientX, sy: e.clientY, ox: it.x, oy: it.y, ow: it.w, oh: it.h };
+        const move = ev => {
+          const d = BS.drag; if (!d) return;
+          const dx = ev.clientX - d.sx, dy = ev.clientY - d.sy;
+          if (d.mode === 'move') { it.x = clamp(d.ox + dx, 0, BS_W - 40); it.y = clamp(d.oy + dy, 0, BS_H - 30); }
+          else {
+            if (it.type === 'image' && it.src) { const r = d.oh / d.ow; it.w = clamp(d.ow + dx, 80, 1600); it.h = Math.round((it.w * r)); }
+            else { it.w = clamp(d.ow + dx, 120, 1200); it.h = clamp(d.oh + dy, 50, 900); }
+          }
+          el.style.left = it.x + 'px'; el.style.top = it.y + 'px'; el.style.width = it.w + 'px'; el.style.height = it.h + 'px';
+          bsPush(id);
+        };
+        const up = () => { window.removeEventListener('pointermove', move); window.removeEventListener('pointerup', up); BS.drag = null; bsPush(id, true); };
+        window.addEventListener('pointermove', move); window.addEventListener('pointerup', up);
+      };
+      el.querySelector('[data-drag]').addEventListener('pointerdown', e => { if (!e.target.closest('button')) start(e, 'move'); });
+      el.querySelector('[data-rs]').addEventListener('pointerdown', e => start(e, 'size'));
+      const img = el.querySelector('img'); if (img) img.addEventListener('pointerdown', e => start(e, 'move'));
+    }
+    function dcSetView(v) { dcUI.view = v; renderDcMain(); }
+    // colar imagem com Ctrl+V quando o quadro estiver aberto
+    document.addEventListener('paste', e => {
+      if (dcUI.view !== 'board' || !document.getElementById('bs-canvas')) return;
+      if (e.target && /textarea|input/i.test(e.target.tagName)) return;
+      const files = [...(e.clipboardData ? e.clipboardData.files : [])];
+      if (files.length) { e.preventDefault(); bsAddImages(files); }
+    });
+    // ---------- baixar o quadro inteiro como imagem ----------
+    async function bsExport() {
+      const list = [...BS.items.values()].sort((a, b) => (a.z || 0) - (b.z || 0));
+      if (!list.length) { showToast('O quadro está vazio.', 'info'); return; }
+      const pad = 40;
+      const minX = Math.min(...list.map(i => i.x)) - pad, minY = Math.min(...list.map(i => i.y)) - pad;
+      const maxX = Math.max(...list.map(i => i.x + i.w)) + pad, maxY = Math.max(...list.map(i => i.y + i.h)) + pad;
+      const W = Math.min(5000, maxX - minX), H = Math.min(5000, maxY - minY);
+      const cv = document.createElement('canvas'); cv.width = W; cv.height = H;
+      const g = cv.getContext('2d');
+      g.fillStyle = '#0b0b0f'; g.fillRect(0, 0, W, H);
+      const wrap = (text, x, y, maxW, lh, maxY2) => {
+        for (const para of String(text || '').split('\n')) {
+          let line = '';
+          for (const word of para.split(' ')) {
+            const t = line ? line + ' ' + word : word;
+            if (g.measureText(t).width > maxW && line) { if (y > maxY2) return; g.fillText(line, x, y); y += lh; line = word; } else line = t;
+          }
+          if (y > maxY2) return; g.fillText(line, x, y); y += lh;
+        }
+      };
+      const rr2 = (x, y, w, h, r) => { g.beginPath(); g.moveTo(x + r, y); g.arcTo(x + w, y, x + w, y + h, r); g.arcTo(x + w, y + h, x, y + h, r); g.arcTo(x, y + h, x, y, r); g.arcTo(x, y, x + w, y, r); g.closePath(); };
+      for (const it of list) {
+        const x = it.x - minX, y = it.y - minY;
+        if (it.type === 'note') {
+          g.fillStyle = it.color; rr2(x, y, it.w, it.h, 12); g.fill();
+          g.fillStyle = 'rgba(0,0,0,.45)'; g.font = '11px Inter, sans-serif'; g.fillText(it.by || '', x + 10, y + 16);
+          g.fillStyle = '#111'; g.font = '15px Inter, sans-serif'; wrap(it.text, x + 12, y + 42, it.w - 24, 20, y + it.h - 8);
+        } else if (it.type === 'text') {
+          g.fillStyle = '#fff'; g.font = 'bold 22px Inter, sans-serif'; wrap(it.text, x + 12, y + 46, it.w - 24, 28, y + it.h);
+        } else if (it.src) {
+          await new Promise(res => { const im = new Image(); im.onload = () => {
+            g.fillStyle = '#18181b'; rr2(x, y, it.w, it.h, 12); g.fill();
+            const bw = it.w - 12, bh = it.h - 30, k = Math.min(bw / im.width, bh / im.height), dw = im.width * k, dh = im.height * k;
+            g.drawImage(im, x + 6 + (bw - dw) / 2, y + 24 + (bh - dh) / 2, dw, dh); res();
+          }; im.onerror = res; im.src = it.src; });
+        }
+      }
+      const a = document.createElement('a'); a.href = cv.toDataURL('image/png'); a.download = `brainstorm-${todayStr()}.png`; document.body.appendChild(a); a.click(); a.remove();
+    }
 
     // tudo que muda o estado da pessoa avisa os outros
     ['dcJoinVoice', 'dcLeaveVoice', 'dcToggleMic', 'dcToggleDeafen', 'dcToggleScreen', 'dcToggleCam', 'switchTab', 'applyAvatar', 'startMic'].forEach(n => {
@@ -3112,7 +3418,9 @@
       fpsStart: m => fpsStart(m), fpsResume: () => fpsResume(),
       fpsSetPrimary: v => { fps.primary = v === 'awp' ? 'awp' : 'ak'; try { localStorage.setItem('nexus_fps_primary', fps.primary); } catch (e) {} if (fps.lobby) fps.lobby.update({ primary: fps.primary }); fpsMenu(fps.menuState || 'start'); },
       fpsMenuMode: v => { fps.menuMode = v; if (fps.menuState === 'waiting') { lobbySet('menu'); } fpsMenu('start'); },
-      lobbyWait: () => lobbyWait(), netCancel: () => netCancel(), netRematch: () => netRematch(),
+      lobbyWait: () => lobbyWait(),
+      fpsSetMap: id => { fpsSetMap(id); fpsMenu(fps.menuState || 'start'); },
+      fpsBuy: w => fpsBuy(w), netCancel: () => netCancel(), netRematch: () => netRematch(),
       fpsSetDiff: v => { fps.diff = v; try { localStorage.setItem('nexus_fps_diff', v); } catch (e) {} },
       fpsSetSens: v => { fps.sens = +v; try { localStorage.setItem('nexus_fps_sens', v); } catch (e) {} }
     };
@@ -5194,6 +5502,23 @@
       const r = canvas.getBoundingClientRect();
       pong.mouse.x = clamp(((e.clientX - r.left) / r.width) * 2 - 1, -1, 1);
       pong.mouse.y = clamp((e.clientY - r.top) / r.height, 0, 1);
+      // posição exata do cursor na tela (para projetar na mesa)
+      pong.mouse.nx = ((e.clientX - r.left) / r.width) * 2 - 1;
+      pong.mouse.ny = -(((e.clientY - r.top) / r.height) * 2 - 1);
+      pong.mouse.has = true;
+    }
+    let pongRay = null, pongNdc = null;
+    // ponto da mesa (na altura da raquete) que está exatamente embaixo do cursor
+    function pongCursorTarget() {
+      if (!pong.mouse.has) return null;
+      if (!pongRay) { pongRay = new THREE.Raycaster(); pongNdc = { x: 0, y: 0 }; }
+      pongNdc.x = pong.mouse.nx; pongNdc.y = pong.mouse.ny;
+      pongRay.setFromCamera(pongNdc, camera);
+      if (!pongRay.ray) return null;
+      const o = pongRay.ray.origin, d = pongRay.ray.direction, y = PT.ty + 0.3;
+      if (Math.abs(d.y) < 1e-4) return null;
+      const t = (y - o.y) / d.y; if (t <= 0) return null;
+      return { x: o.x + d.x * t, z: o.z + d.z * t };
     }
     function pongClick() {
       if (pong.phase === 'serve' && pong.server === 'p') { pongHit('p'); pong.msg = ''; pongHud(); }
@@ -5201,9 +5526,13 @@
     function stepPong(dt) {
       const d = PONG_DIFF[pong.diff], b = pong.ball, M3 = pong.meshes;
       // raquete do jogador (mouse)
-      const tx = PT.cx + pong.mouse.x * (PT.hw + 0.75);
-      const tz = PT.cz + PT.hl + 0.05 + pong.mouse.y * 1.5;
-      const nx = pong.pp.x + (tx - pong.pp.x) * Math.min(1, dt * 18), nz = pong.pp.z + (tz - pong.pp.z) * Math.min(1, dt * 18);
+      const cur = pongCursorTarget();
+      let tx = cur ? cur.x : PT.cx + pong.mouse.x * (PT.hw + 0.75);
+      let tz = cur ? cur.z : PT.cz + PT.hl + 0.05 + pong.mouse.y * 1.5;
+      tx = clamp(tx, PT.cx - PT.hw - 0.75, PT.cx + PT.hw + 0.75);
+      tz = clamp(tz, PT.cz + PT.hl - 0.25, PT.cz + PT.hl + 1.55);
+      const follow = Math.min(1, dt * 45);   // quase instantâneo, só suaviza o tremido
+      const nx = pong.pp.x + (tx - pong.pp.x) * follow, nz = pong.pp.z + (tz - pong.pp.z) * follow;
       pong.ppVel.x = pong.ppVel.x * 0.7 + ((nx - pong.pp.x) / Math.max(dt, 1e-3)) * 0.3;
       pong.ppVel.z = pong.ppVel.z * 0.7 + ((nz - pong.pp.z) / Math.max(dt, 1e-3)) * 0.3;
       pong.pp.x = nx; pong.pp.z = nz;
@@ -5303,6 +5632,136 @@
         if (label) { g.fillStyle = c2; g.font = 'bold 22px monospace'; g.fillText(label, 10, 30); }
       }, true);
     }
+    // =================== MAPAS DO X1 ===================
+    // Todos usam a mesma arena (44 x 26) e os mesmos spawns (x = ±19), com coberturas diferentes.
+    const FPS_MAPS = {
+      classico: {
+        name: 'Clássico', desc: 'Céu aberto, caixas e muretas', sky: '#9fc3e6', fog: [40, 90], hemi: 1.1, sun: 1.6,
+        floor: ['#8a7f70', '#6f6558'], wall: ['#a9a9a9', '#8c8c8c'],
+        build(add, T) {
+          add(-1.3, 0, -1.3, 1.3, 2.6, 1.3, T.crate);
+          add(1.3, 0, -0.5, 2.3, 1.0, 0.5, T.crate); add(-2.3, 0, -0.5, -1.3, 1.0, 0.5, T.crate);
+          add(-5, 0, 5.5, -4, 3, 11, T.wall); add(4, 0, -11, 5, 3, -5.5, T.wall);
+          add(-9.2, 0, -7.2, -7.6, 1.0, -5.6, T.crate); add(7.6, 0, 5.6, 9.2, 1.0, 7.2, T.crate);
+          add(-10.5, 0, 2.8, -8.9, 2.2, 4.4, T.crate); add(8.9, 0, -4.4, 10.5, 2.2, -2.8, T.crate);
+          add(-16.2, 0, -3, -15.2, 1.4, 3, T.blue); add(15.2, 0, -3, 16.2, 1.4, 3, T.red);
+          [[-12, 8], [11, -9], [-12, -9], [11, 8]].forEach(([x, z]) => add(x, 0, z, x + 1, 4, z + 1, T.wall));
+          add(-1, 0, 8, 1, 1.0, 10, T.crate); add(-1, 0, -10, 1, 1.0, -8, T.crate);
+        }
+      },
+      armazem: {
+        name: 'Armazém', desc: 'Galpão fechado com contêineres e corredores', sky: '#1d2128', fog: [26, 70], hemi: 0.75, sun: 1.1,
+        floor: ['#5b5f66', '#474a50'], wall: ['#3a3f47', '#2b2f36'],
+        build(add, T) {
+          const C1 = T.tex('#c2621f', '#8f4612', 'NX-01'), C2 = T.tex('#2f6f9f', '#1f4c6e', 'NX-02'), C3 = T.tex('#4f7d3a', '#355428', 'NX-03');
+          // contêineres (pares espelhados: (x, z) -> (-x, -z))
+          add(-12, 0, 4, -6, 2.6, 6.4, C1); add(6, 0, -6.4, 12, 2.6, -4, C1);
+          add(-3, 0, 8.5, 3, 2.6, 10.9, C2); add(-3, 0, -10.9, 3, 2.6, -8.5, C2);
+          add(-11, 0, -9.5, -8.6, 2.6, -4.5, C3); add(8.6, 0, 4.5, 11, 2.6, 9.5, C3);
+          // contêiner empilhado (alto) no meio de cada lado
+          add(-7, 2.6, 4, -6, 3.2, 6.4, T.wall); add(6, 2.6, -6.4, 7, 3.2, -4, T.wall);
+          // centro: caixas baixas desencontradas
+          add(-3, 0, -4.5, -1.6, 1.1, -3.1, T.crate); add(1.6, 0, 3.1, 3, 1.1, 4.5, T.crate);
+          add(-1.3, 0, -1.3, 1.3, 2.6, 1.3, C2);
+          // paredes internas com passagem
+          add(-6, 0, -13, -5, 3.6, -7.5, T.wall); add(5, 0, 7.5, 6, 3.6, 13, T.wall);
+          add(-17, 0, 4, -15.6, 3, 9, T.wall); add(15.6, 0, -9, 17, 3, -4, T.wall);
+          // colunas
+          [[-9, 8.5], [8, -9.5], [-15, -9], [14, 8]].forEach(([x, z]) => add(x, 0, z, x + 1, 6, z + 1, T.wall));
+          // cobertura perto dos spawns
+          add(-13.5, 0, -0.6, -12.3, 1.1, 0.6, T.crate); add(12.3, 0, -0.6, 13.5, 1.1, 0.6, T.crate);
+        }
+      }
+    };
+    function fpsLoadMap(id) {
+      const S = fps.scene, M = FPS_MAPS[id] || FPS_MAPS.classico;
+      if (fps.mapGroup) {
+        S.remove(fps.mapGroup);
+        fps.mapGroup.traverse(o => { if (o.geometry) o.geometry.dispose(); if (o.material) { if (o.material.map) o.material.map.dispose(); o.material.dispose(); } });
+      }
+      const G = fps.mapGroup = new THREE.Group(); S.add(G);
+      fps.boxes = [];
+      S.background = new THREE.Color(M.sky); S.fog = new THREE.Fog(M.sky, M.fog[0], M.fog[1]);
+      if (fps.hemi) fps.hemi.intensity = M.hemi; if (fps.sun) fps.sun.intensity = M.sun;
+      const floorT = fpsDevTex(M.floor[0], M.floor[1]); floorT.repeat.set(22, 13);
+      const floor = new THREE.Mesh(new THREE.PlaneGeometry(44, 26), new THREE.MeshStandardMaterial({ map: floorT, roughness: 0.95 }));
+      floor.rotation.x = -Math.PI / 2; G.add(floor);
+      const T = {
+        tex: (a, b, l) => fpsDevTex(a, b, l),
+        wall: fpsDevTex(M.wall[0], M.wall[1], 'NEXUS'), crate: fpsDevTex('#b5853f', '#7a5320'),
+        blue: fpsDevTex('#4b6b8c', '#334d66'), red: fpsDevTex('#8c4b4b', '#663333')
+      };
+      const add = (x1, y1, z1, x2, y2, z2, tex) => {
+        const w = x2 - x1, h = y2 - y1, d = z2 - z1;
+        const t = tex.clone(); t.needsUpdate = true; t.repeat.set(Math.max(1, Math.max(w, d) / 2), Math.max(1, h / 2));
+        const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), new THREE.MeshStandardMaterial({ map: t, roughness: 0.9 }));
+        m.position.set((x1 + x2) / 2, (y1 + y2) / 2, (z1 + z2) / 2); G.add(m);
+        fps.boxes.push({ min: [x1, y1, z1], max: [x2, y2, z2] });
+      };
+      // paredes externas
+      add(-23, 0, -14, 23, 6, -13, T.wall); add(-23, 0, 13, 23, 6, 14, T.wall);
+      add(-23, 0, -13, -22, 6, 13, T.wall); add(22, 0, -13, 23, 6, 13, T.wall);
+      if (id === 'armazem') {   // teto do galpão (só visual, não conta como obstáculo)
+        const ceil = new THREE.Mesh(new THREE.BoxGeometry(46, 0.4, 28), new THREE.MeshStandardMaterial({ color: '#202329', roughness: 0.9 }));
+        ceil.position.set(0, 6.2, 0); G.add(ceil);
+        [-12, -4, 4, 12].forEach(x => { const l = new THREE.Mesh(new THREE.BoxGeometry(6, 0.08, 0.35), new THREE.MeshBasicMaterial({ color: '#f5f1e3', toneMapped: false })); l.position.set(x, 5.95, 0); G.add(l); });
+      }
+      M.build(add, T);
+      [[-19, '#3b82f6'], [19, '#ef4444']].forEach(([x, c]) => { const m = new THREE.Mesh(new THREE.CircleGeometry(1.2, 32), new THREE.MeshBasicMaterial({ color: c, transparent: true, opacity: 0.35 })); m.rotation.x = -Math.PI / 2; m.position.set(x, 0.01, 0); G.add(m); });
+      fps.mapId = id;
+      fpsBuildGraph();
+    }
+    function fpsSetMap(id) {
+      if (!FPS_MAPS[id]) return;
+      fps.map = id;
+      try { localStorage.setItem('nexus_fps_map', id); } catch (e) {}
+      if (fps.built && fps.mapId !== id) fpsLoadMap(id);
+    }
+    // ---------- tela cheia + trava do teclado (Ctrl+W, Ctrl+T etc. não fecham o site) ----------
+    async function fpsFullscreen(on) {
+      try {
+        if (on) {
+          if (!document.fullscreenElement && document.documentElement.requestFullscreen) { await document.documentElement.requestFullscreen({ navigationUI: 'hide' }); fps.fsByUs = true; }
+          if (navigator.keyboard && navigator.keyboard.lock) { await navigator.keyboard.lock(); fps.kbLocked = true; }
+        } else {
+          if (navigator.keyboard && navigator.keyboard.unlock) navigator.keyboard.unlock();
+          fps.kbLocked = false;
+          if (fps.fsByUs && document.fullscreenElement) await document.exitFullscreen();
+          fps.fsByUs = false;
+        }
+      } catch (e) {}
+    }
+    window.addEventListener('beforeunload', e => { if (fps.active && fps.running) { e.preventDefault(); e.returnValue = ''; } });
+    document.addEventListener('fullscreenchange', () => {
+      if (!document.fullscreenElement) { fps.kbLocked = false; fps.fsByUs = false; if (fps.active && fps.running && !fps.paused && fps.state !== 'over') fpsMenu('pause'); }
+    });
+    // ---------- compra de arma (tecla B, nos primeiros segundos do round) ----------
+    const BUY_TIME = 15;
+    const canBuy = () => fps.running && !fps.paused && fps.state === 'live' && fps.p && fps.p.hp > 0 && (fps.liveT || 0) < BUY_TIME;
+    function fpsBuyHint() {
+      const h = document.getElementById('fps-buyhint'); if (!h) return;
+      const ok = canBuy(), left = Math.ceil(BUY_TIME - (fps.liveT || 0));
+      h.classList.toggle('hidden', !ok);
+      if (ok && h.dataset.s !== String(left)) { h.dataset.s = left; h.innerHTML = `<b class="text-white">B</b> comprar arma · ${left}s`; }
+      if (!ok && fps.buyOpen) fpsBuyMenu(false);
+    }
+    function fpsBuyMenu(open) {
+      fps.buyOpen = open && canBuy();
+      const el = document.getElementById('fps-buy'); if (!el) return;
+      el.classList.toggle('hidden', !fps.buyOpen);
+      if (fps.buyOpen) el.querySelectorAll('[data-buy]').forEach(b => b.classList.toggle('ring-2', b.dataset.buy === fps.primary));
+    }
+    function fpsBuy(w) {
+      if (!['ak', 'awp'].includes(w) || !canBuy()) { fpsBuyMenu(false); return; }
+      const P = fps.p, f = fpsMakeFighter(w);
+      fps.primary = w;
+      try { localStorage.setItem('nexus_fps_primary', w); } catch (e) {}
+      P.ammo[w] = f.ammo[w]; P.reserve[w] = f.reserve[w];
+      fpsSwitch(w, true);
+      sfx('reload', 0.5);
+      if (fps.lobby) fps.lobby.update({ primary: w });
+      fpsBuyMenu(false); fpsHud();
+    }
     function fpsBuild() {
       const canvas = document.getElementById('fps-canvas');
       const R = fps.renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
@@ -5311,35 +5770,9 @@
       const S = fps.scene = new THREE.Scene();
       S.background = new THREE.Color('#9fc3e6'); S.fog = new THREE.Fog('#9fc3e6', 40, 90);
       const C = fps.camera = new THREE.PerspectiveCamera(75, 1, 0.03, 200); C.rotation.order = 'YXZ'; C.position.set(-19, EYE, 0); C.rotation.y = -Math.PI / 2; S.add(C);
-      S.add(new THREE.HemisphereLight('#ffffff', '#6b5b45', 1.1));
-      const sunL = new THREE.DirectionalLight('#fff3dc', 1.6); sunL.position.set(12, 30, 8); S.add(sunL);
-      // mapa x1 simétrico
-      fps.boxes = [];
-      const floorT = fpsDevTex('#8a7f70', '#6f6558'); floorT.repeat.set(22, 13);
-      const floor = new THREE.Mesh(new THREE.PlaneGeometry(44, 26), new THREE.MeshStandardMaterial({ map: floorT, roughness: 0.95 }));
-      floor.rotation.x = -Math.PI / 2; S.add(floor);
-      const wallT = fpsDevTex('#a9a9a9', '#8c8c8c', 'NEXUS'), crateT = fpsDevTex('#b5853f', '#7a5320'), blueT = fpsDevTex('#4b6b8c', '#334d66'), redT = fpsDevTex('#8c4b4b', '#663333');
-      const add = (x1, y1, z1, x2, y2, z2, tex) => {
-        const w = x2 - x1, h = y2 - y1, d = z2 - z1;
-        const t = tex.clone(); t.needsUpdate = true; t.repeat.set(Math.max(1, Math.max(w, d) / 2), Math.max(1, h / 2));
-        const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), new THREE.MeshStandardMaterial({ map: t, roughness: 0.9 }));
-        m.position.set((x1 + x2) / 2, (y1 + y2) / 2, (z1 + z2) / 2); S.add(m);
-        fps.boxes.push({ min: [x1, y1, z1], max: [x2, y2, z2] });
-      };
-      add(-23, 0, -14, 23, 6, -13, wallT); add(-23, 0, 13, 23, 6, 14, wallT);
-      add(-23, 0, -13, -22, 6, 13, wallT); add(22, 0, -13, 23, 6, 13, wallT);
-      add(-1.3, 0, -1.3, 1.3, 2.6, 1.3, crateT);
-      add(1.3, 0, -0.5, 2.3, 1.0, 0.5, crateT); add(-2.3, 0, -0.5, -1.3, 1.0, 0.5, crateT);
-      add(-5, 0, 5.5, -4, 3, 11, wallT); add(4, 0, -11, 5, 3, -5.5, wallT);
-      add(-9.2, 0, -7.2, -7.6, 1.0, -5.6, crateT); add(7.6, 0, 5.6, 9.2, 1.0, 7.2, crateT);
-      add(-10.5, 0, 2.8, -8.9, 2.2, 4.4, crateT); add(8.9, 0, -4.4, 10.5, 2.2, -2.8, crateT);
-      add(-16.2, 0, -3, -15.2, 1.4, 3, blueT); add(15.2, 0, -3, 16.2, 1.4, 3, redT);
-      [[-12, 8], [11, -9], [-12, -9], [11, 8]].forEach(([x, z]) => add(x, 0, z, x + 1, 4, z + 1, wallT));
-      add(-1, 0, 8, 1, 1.0, 10, crateT); add(-1, 0, -10, 1, 1.0, -8, crateT);
-      // marcação dos spawns
-      [[-19, '#3b82f6'], [19, '#ef4444']].forEach(([x, c]) => { const m = new THREE.Mesh(new THREE.CircleGeometry(1.2, 32), new THREE.MeshBasicMaterial({ color: c, transparent: true, opacity: 0.35 })); m.rotation.x = -Math.PI / 2; m.position.set(x, 0.01, 0); S.add(m); });
-      // pontos de navegação do bot
-      fpsBuildGraph();
+      fps.hemi = new THREE.HemisphereLight('#ffffff', '#6b5b45', 1.1); S.add(fps.hemi);
+      fps.sun = new THREE.DirectionalLight('#fff3dc', 1.6); fps.sun.position.set(12, 30, 8); S.add(fps.sun);
+      fpsLoadMap(FPS_MAPS[fps.map] ? fps.map : 'classico');
       // bot
       fps.bot = { obj: fpsMakeBot(), pos: new THREE.Vector3(), vel: new THREE.Vector3(), yaw: 0, hp: 100, phase: 0 };
       S.add(fps.bot.obj);
@@ -5363,6 +5796,10 @@
       window.addEventListener('keydown', e => {
         if (!fps.active) return;
         const k = e.key.toLowerCase();
+        // trava atalhos do navegador durante o jogo
+        if (fps.running && (e.ctrlKey || e.metaKey || e.altKey || ['f1', 'f3', 'f5', 'f6', 'f7', 'tab'].includes(k))) e.preventDefault();
+        if (k === 'escape' && fps.buyOpen) { e.preventDefault(); fpsBuyMenu(false); return; }
+        if (k === 'escape' && document.pointerLockElement) { e.preventDefault(); fps.unlockAt = performance.now(); document.exitPointerLock(); return; }
         if (k === 'escape' && !document.pointerLockElement) {
           e.preventDefault();
           if (performance.now() - (fps.unlockAt || 0) < 400) return;   // Esc que acabou de soltar o mouse
@@ -5371,6 +5808,8 @@
         }
         if (!fps.running) return;
         keysF[k] = true; if (e.code === 'ControlLeft' || e.code === 'ControlRight') keysF.ctrl = true;
+        if (k === 'b') { fpsBuyMenu(!fps.buyOpen); return; }
+        if (fps.buyOpen && (k === '1' || k === '2')) { fpsBuy(k === '1' ? 'ak' : 'awp'); return; }
         if (k === '1') fpsSwitch(fps.primary || 'ak'); else if (k === '2') fpsSwitch('deagle'); else if (k === '3') fpsSwitch('knife');
         else if (k === 'q') fpsSwitch(fps.lastWeapon || 'deagle');
         else if (k === 'r') fpsReload();
@@ -5595,10 +6034,10 @@
       B.pos.set(west ? 19 : -19, 0, rand(-2, 2)); B.vel.set(0, 0, 0); B.yaw = west ? Math.PI / 2 : -Math.PI / 2;
       B.weapon = fps.mode === 'online' ? (fps.oppPrimary || 'ak') : ['ak', 'ak', 'deagle', 'awp'][Math.floor(Math.random() * 4)];
       Object.assign(B, fpsMakeFighter(B.weapon));
-      B.seeT = 0; B.lastSeen = null; B.lastSeenT = -99; B.target = null; B.burst = 0; B.pause = 0; B.strafeT = 0; B.strafeDir = 1; B.aimT = 0;
+      B.recoil = 0; B.seeT = 0; B.lastSeen = null; B.lastSeenT = -99; B.target = null; B.burst = 0; B.pause = 0; B.strafeT = 0; B.strafeDir = 1; B.aimT = 0;
       B.net = null;
       B.obj.visible = true; B.obj.rotation.set(0, 0, 0); B.obj.position.y = 0;
-      fps.state = 'live'; fps.roundT = 0; fps.roundSent = false; fps.roundWon = false; fps.traded = false;
+      fps.state = 'live'; fps.roundT = 0; fps.roundSent = false; fps.roundWon = false; fps.traded = false; fps.liveT = 0; fpsBuyMenu(false);
       fpsSwitch(P.weapon, true);
       fpsHud();
     }
@@ -5607,6 +6046,8 @@
       if (pong.active) exitPong();
       if (!fps.built) fpsBuild();
       fps.active = true; window.officeGame = 'fps';
+      try { const m = localStorage.getItem('nexus_fps_map'); if (FPS_MAPS[m]) fpsSetMap(m); } catch (e) {}
+      fpsFullscreen(true);
       const ov = document.getElementById('fps-overlay'); ov.classList.remove('hidden');
       fpsResize();
       try { fps.sens = parseFloat(localStorage.getItem('nexus_fps_sens')) || 1; fps.diff = localStorage.getItem('nexus_fps_diff') || 'medio'; fps.primary = localStorage.getItem('nexus_fps_primary') || 'ak'; } catch (e) { fps.sens = 1; fps.diff = 'medio'; fps.primary = 'ak'; }
@@ -5620,8 +6061,9 @@
     function exitFps() {
       if (!fps.active) return;
       fps.active = false; fps.running = false; fps.paused = false; fps.freeLook = false; fpsFreeHint(false); window.officeGame = null;
-      netClose(true); lobbyLeave();
+      netClose(true); lobbyLeave(); fpsBuyMenu(false);
       if (document.pointerLockElement) document.exitPointerLock();
+      fpsFullscreen(false);
       document.getElementById('fps-overlay').classList.add('hidden');
       for (const k in fps.keys) fps.keys[k] = false;
       if (clock) clock.getDelta();
@@ -5629,6 +6071,7 @@
     function fpsStart(mode) {
       fps.mode = mode === 'online' || (mode === undefined && fps.mode === 'online' && fps.net) ? 'online' : 'bot';
       if (fps.mode === 'online' && !fps.net) { fpsMenu('start'); return; }
+      if (!document.fullscreenElement) fpsFullscreen(true);
       fps.score = [0, 0]; fps.feed = []; fps.banner = '';
       fps.p = { pos: new THREE.Vector3(), vel: new THREE.Vector3(), weapon: fps.primary || 'ak' };
       fpsNewRound();
@@ -5646,11 +6089,15 @@
       const primary = `<div class="flex flex-col items-center gap-2"><p class="text-[11px] uppercase tracking-wider text-zinc-500">Arma principal (tecla 1)</p>
         <div class="flex gap-2">${btn(fps.primary === 'ak', "office3D.fpsSetPrimary('ak')", '🔫 AK-47')}${btn(fps.primary === 'awp', "office3D.fpsSetPrimary('awp')", '🎯 AWP')}</div>
         <p class="text-[11px] text-zinc-500">Sempre com Desert Eagle (2) e Faca (3)</p></div>`;
+      const mapSel = `<div class="flex flex-col items-center gap-2"><p class="text-[11px] uppercase tracking-wider text-zinc-500">Mapa${fps.mode === 'online' || fps.menuMode === 'online' ? ' <span class="normal-case tracking-normal text-zinc-600">(no online vale o de quem procurou primeiro)</span>' : ''}</p>
+        <div class="flex gap-2">${Object.entries(FPS_MAPS).map(([k, m]) => btn((fps.map || 'classico') === k, `office3D.fpsSetMap('${k}')`, `${k === 'armazem' ? '🏭' : '🏜️'} ${m.name}`)).join('')}</div>
+        <p class="text-[11px] text-zinc-500">${esc3(FPS_MAPS[fps.map || 'classico'].desc)}</p></div>`;
       const sens = `<label class="flex items-center gap-3 text-xs text-zinc-300">Sensibilidade <input type="range" min="0.2" max="3" step="0.05" value="${fps.sens}" oninput="office3D.fpsSetSens(this.value); this.nextElementSibling.textContent=(+this.value).toFixed(2)" class="accent-blue-600"><span class="w-10 text-zinc-400">${(+fps.sens).toFixed(2)}</span></label>`;
       const controls = `<div class="grid grid-cols-2 gap-x-6 gap-y-1 text-[11px] text-zinc-400 text-left">
         <span><b class="text-zinc-200">WASD</b> andar · <b class="text-zinc-200">Shift</b> devagar</span><span><b class="text-zinc-200">Espaço</b> pular · <b class="text-zinc-200">Ctrl/C</b> agachar</span>
         <span><b class="text-zinc-200">Clique</b> atirar / golpe rápido</span><span><b class="text-zinc-200">Botão direito</b> zoom da AWP / golpe forte</span>
-        <span><b class="text-zinc-200">1</b> principal · <b class="text-zinc-200">2</b> Deagle · <b class="text-zinc-200">3</b> Faca</span><span><b class="text-zinc-200">R</b> recarregar · <b class="text-zinc-200">Q</b> última · <b class="text-zinc-200">Esc</b> pausar</span></div>`;
+        <span><b class="text-zinc-200">1</b> principal · <b class="text-zinc-200">2</b> Deagle · <b class="text-zinc-200">3</b> Faca</span><span><b class="text-zinc-200">R</b> recarregar · <b class="text-zinc-200">Q</b> última · <b class="text-zinc-200">Esc</b> pausar</span>
+        <span><b class="text-zinc-200">B</b> comprar AK-47 / AWP (início do round)</span></div>`;
       const exitBtn = `<button onclick="office3D.exitGames()" class="px-5 py-3 rounded-lg bg-zinc-900 border border-zinc-800 text-zinc-300 text-sm">Sair</button>`;
       let html = '';
       if (kind === 'start') {
@@ -5662,7 +6109,8 @@
              <p class="text-[11px] text-zinc-500">Quando duas pessoas clicarem em “Procurar adversário”, a partida começa sozinha para as duas.</p>
              <div class="flex gap-2"><button onclick="office3D.lobbyWait()" class="btn-primary !px-8 !py-3 !text-sm">Procurar adversário</button>${exitBtn}</div>`;
         html = `<h2 class="text-3xl font-extrabold text-white tracking-wide">X1 <span class="text-red-500">NEXUS</span></h2>
-          <p class="text-sm text-zinc-400">Ganha quem fizer <b class="text-white">${FPS_WIN}</b> primeiro.</p>${tabs}${primary}${modeBody}${sens}${controls}`;
+          <p class="text-sm text-zinc-400">Ganha quem fizer <b class="text-white">${FPS_WIN}</b> primeiro.</p>${tabs}${primary}${mapSel}${modeBody}${sens}${controls}
+          <p class="text-[11px] text-zinc-500">O jogo abre em tela cheia e trava os atalhos do navegador (Ctrl+W, Ctrl+T...). Para sair da tela cheia, <b class="text-zinc-300">segure Esc</b>.</p>`;
       } else if (kind === 'waiting') {
         html = `<h2 class="text-2xl font-extrabold text-white">Procurando adversário...</h2>
           <p class="text-sm text-zinc-400 flex items-center gap-2"><span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>Assim que outra pessoa clicar em “Procurar adversário”, vocês entram juntos.</p>
@@ -5685,7 +6133,7 @@
         const win = fps.score[0] > fps.score[1];
         html = `<h2 class="text-4xl font-extrabold ${win ? 'text-emerald-400' : 'text-red-400'}">${win ? 'VITÓRIA' : 'DERROTA'}</h2><p class="text-lg text-white">Você ${fps.score[0]} × ${fps.score[1]} ${oppName()}</p>
           ${fps.mode === 'online' ? `${primary}<div class="flex gap-2"><button onclick="office3D.netRematch()" class="btn-primary !px-8 !py-3 !text-sm">Revanche</button>${exitBtn}</div>`
-            : `${primary}<div class="flex gap-2">${diffSel}<button onclick="office3D.fpsStart('bot')" class="btn-primary !px-8 !py-3 !text-sm">Jogar de novo</button>${exitBtn}</div>`}`;
+            : `${primary}${mapSel}<div class="flex gap-2">${diffSel}<button onclick="office3D.fpsStart('bot')" class="btn-primary !px-8 !py-3 !text-sm">Jogar de novo</button>${exitBtn}</div>`}`;
       } else if (kind === 'left') {
         html = `<h2 class="text-2xl font-extrabold text-white">${oppName()} saiu da partida</h2><p class="text-sm text-zinc-400">Placar final: Você ${fps.score ? fps.score[0] : 0} × ${fps.score ? fps.score[1] : 0}</p>
           <div class="flex gap-2"><button onclick="office3D.netCancel()" class="btn-primary !px-8 !py-3 !text-sm">Voltar ao menu</button>${exitBtn}</div>`;
@@ -5753,17 +6201,17 @@
       fps.netReady = false;
     }
     function netCancel() { netClose(true); fps.running = false; fps.mode = 'bot'; lobbySet('menu'); fpsMenu('start'); }
-    function netRematch() { if (!fps.net) return netCancel(); fps.net.send({ t: 'restart', primary: fps.primary }); fpsStart('online'); }
+    function netRematch() { if (!fps.net) return netCancel(); fps.net.send({ t: 'restart', primary: fps.primary, map: fps.map }); fpsStart('online'); }
     function onNet(m) {
       if (!m || !fps.active) return;
       const P = fps.p, B = fps.bot;
       switch (m.t) {
         case 'hello':
           fps.oppName = String(m.name || 'Oponente').slice(0, 24); fps.oppPrimary = m.primary === 'awp' ? 'awp' : 'ak';
-          if (fps.isHost) { fps.net.send({ t: 'start' }); fpsStart('online'); }
+          if (fps.isHost) { fps.net.send({ t: 'start', map: fps.map }); fpsStart('online'); }
           break;
-        case 'start': fpsStart('online'); break;
-        case 'restart': fps.oppPrimary = m.primary === 'awp' ? 'awp' : 'ak'; fpsStart('online'); break;
+        case 'start': if (FPS_MAPS[m.map] && fps.mapId !== m.map) { fps.map = m.map; fpsLoadMap(m.map); } fpsStart('online'); break;
+        case 'restart': fps.oppPrimary = m.primary === 'awp' ? 'awp' : 'ak'; if (FPS_MAPS[m.map] && fps.mapId !== m.map) { fps.map = m.map; fpsLoadMap(m.map); } fpsStart('online'); break;
         case 's':
           if (!B) break;
           B.net = { p: m.p, y: m.y, c: m.c || 0 }; B.hp = m.hp; B.remoteWeapon = m.w;
@@ -5851,7 +6299,7 @@
       const w = WEAPONS[F.weapon];
       F.ammo[F.weapon]--; F.next = w.rate;
       let ry = 0, rp = 0;
-      if (F.weapon === 'ak') { const i = Math.min(Math.floor(F.recoil), AK_PATTERN.length - 1); ry = -AK_PATTERN[i][0] * DEG; rp = AK_PATTERN[i][1] * DEG; F.recoil += 1; }
+      if (F.weapon === 'ak') { const i = Math.min(Math.floor(F.recoil || 0), AK_PATTERN.length - 1); ry = -AK_PATTERN[i][0] * DEG; rp = AK_PATTERN[i][1] * DEG; F.recoil += 1; }
       else if (F.weapon === 'deagle') { F.shotInacc = Math.min(0.09, (F.shotInacc || 0) + 0.035); rp = 0; }
       const dir = spreadDir(yaw + ry, pitch + rp, inacc);
       const wallHit = rayWorld(eye, dir);
@@ -6081,7 +6529,7 @@
       const online = fps.mode === 'online';
       if (fps.running && (!fps.paused || online)) {
         if (fps.paused) { for (const k in fps.keys) fps.keys[k] = false; fps.mouseDown = false; fps.clickQueued = false; }
-        if (fps.state === 'live') { fpsStepPlayer(dt); if (online) fpsStepRemote(dt); else fpsStepBot(dt); }
+        if (fps.state === 'live') { fps.liveT = (fps.liveT || 0) + dt; fpsStepPlayer(dt); if (online) fpsStepRemote(dt); else fpsStepBot(dt); fpsBuyHint(); }
         else {
           fps.roundT += dt;
           if (online) fpsStepRemote(dt);
